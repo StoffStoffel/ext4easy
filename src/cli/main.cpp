@@ -5,7 +5,10 @@
 //   ext4win ls <source> [path]         list a directory
 //   ext4win cat <source> <path>        write a file to stdout
 //   ext4win stat <source> <path>       show file details
-//   ext4win mount <source> [X:]        mount as drive letter (needs WinFsp)
+//   ext4win mount <source> [X:]        mount as drive letter
+//   ext4win install | uninstall        background service + tray autostart
+//   ext4win service [--console]        the background service itself
+//   ext4win ctl <request...>           talk to the running service
 //
 // <source> is an image file or \\.\PhysicalDriveN, optionally followed by
 // @N to choose partition N (default: first ext partition).
@@ -24,9 +27,8 @@
 #include <string>
 #include <vector>
 
-#ifdef HAVE_WINFSP
 #include "mount/winfsp_fs.h"
-#endif
+#include "service/service_main.h"
 
 using namespace ext4win;
 
@@ -40,11 +42,12 @@ void printUsage() {
         "  ext4win ls   <source> [path]   list a directory\n"
         "  ext4win cat  <source> <path>   write a file to stdout\n"
         "  ext4win stat <source> <path>   show file details\n"
-#ifdef HAVE_WINFSP
         "  ext4win mount <source> [X:]    mount read-only as a drive letter\n"
-#else
-        "  (mount support not built: WinFsp SDK was missing)\n"
-#endif
+        "\n"
+        "  ext4win install                install background service + tray app (admin)\n"
+        "  ext4win uninstall              remove them again (admin)\n"
+        "  ext4win service --console      run the service in this window (testing)\n"
+        "  ext4win ctl LIST|MOUNT id|...  send a request to the running service\n"
         "\n<source> is an image file or \\\\.\\PhysicalDriveN, optionally with @N\n"
         "to choose partition N (default: first ext partition).\n"
         "Raw disk access needs administrator rights.\n");
@@ -281,7 +284,6 @@ int cmdStat(const std::vector<std::wstring>& args) {
     return 0;
 }
 
-#ifdef HAVE_WINFSP
 int cmdMount(const std::vector<std::wstring>& args) {
     if (args.empty()) {
         printUsage();
@@ -292,7 +294,6 @@ int cmdMount(const std::vector<std::wstring>& args) {
     std::wstring mountPoint = args.size() > 1 ? args[1] : L"";
     return runMountUntilCtrlC(std::move(vol), mountPoint);
 }
-#endif
 
 }  // namespace
 
@@ -308,9 +309,12 @@ int wmain(int argc, wchar_t** argv) {
     if (cmd == L"ls") return cmdLs(args);
     if (cmd == L"cat") return cmdCat(args);
     if (cmd == L"stat") return cmdStat(args);
-#ifdef HAVE_WINFSP
     if (cmd == L"mount") return cmdMount(args);
-#endif
+    if (cmd == L"install") return installService();
+    if (cmd == L"uninstall") return uninstallService();
+    if (cmd == L"service")
+        return !args.empty() && args[0] == L"--console" ? runServiceConsole() : runServiceDispatcher();
+    if (cmd == L"ctl") return runCtl(args);
     printUsage();
     return 2;
 }

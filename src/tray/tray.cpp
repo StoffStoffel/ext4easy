@@ -1,0 +1,428 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// ext4win tray app: shows Linux drives known to the service, asks whether to
+// mount newly connected ones, and offers open/unmount/policy per drive.
+
+#include "ipc/pipe.h"
+#include "tray/strings.h"
+
+#include <windows.h>
+#include <commctrl.h>
+#include <commdlg.h>
+#include <shellapi.h>
+
+#include <atomic>
+#include <cstdlib>
+#include <memory>
+#include <cstdio>
+#include <deque>
+#include <string>
+#include <thread>
+#include <vector>
+
+using namespace ext4win;
+
+namespace {
+
+constexpr UINT WM_TRAY = WM_APP + 1;          // notification icon callback
+constexpr UINT WM_PIPE_EVENT = WM_APP + 2;    // lParam: std::string* (owned by receiver)
+constexpr UINT WM_PIPE_STATE = WM_APP + 3;    // wParam: 1 = connected, 0 = disconnected
+constexpr UINT WM_SHOW_NEXT_ASK = WM_APP + 4;
+
+constexpr UINT CMD_ATTACH = 100;
+constexpr UINT CMD_EXIT = 101;
+constexpr UINT CMD_VOLUME_BASE = 1000;  // + id * 16 + action
+enum Action { ActOpen, ActMount, ActUnmount, ActAsk, ActAlways, ActNever, ActDetach };
+
+HWND g_hwnd = nullptr;
+UINT g_taskbarCreated = 0;
+NOTIFYICONDATAW g_nid{};
+std::atomic<bool> g_quit{false};
+bool g_connected = false;
+std::vector<VolumeRecord> g_volumes;
+std::deque<int> g_askQueue;
+bool g_askShowing = false;
+std::wstring g_balloonTarget;  // opened when the balloon is clicked
+
+std::wstring widen(const std::string& s) {
+    if (s.empty()) return {};
+    int n = MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()), nullptr, 0);
+    std::wstring w(static_cast<size_t>(n), L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()), w.data(), n);
+    return w;
+}
+
+std::string narrow(const std::wstring& w) {
+    if (w.empty()) return {};
+    int n = WideCharToMultiByte(CP_UTF8, 0, w.data(), static_cast<int>(w.size()), nullptr, 0,
+                                nullptr, nullptr);
+    std::string s(static_cast<size_t>(n), '\0');
+    WideCharToMultiByte(CP_UTF8, 0, w.data(), static_cast<int>(w.size()), s.data(), n, nullptr,
+                        nullptr);
+    return s;
+}
+
+template <typename... Args>
+std::wstring format(Str id, Args... args) {
+    wchar_t buf[512];
+    std::swprintf(buf, 512, tr(id), args...);
+    return buf;
+}
+
+std::wstring sizeText(unsigned long long bytes) {
+    const wchar_t* units[] = {L"B", L"KB", L"MB", L"GB", L"TB"};
+    double v = static_cast<double>(bytes);
+    int u = 0;
+    while (v >= 1000.0 && u < 4) {
+        v /= 1000.0;
+        ++u;
+    }
+    wchar_t buf[32];
+    std::swprintf(buf, 32, u == 0 ? L"%.0f %s" : L"%.1f %s", v, units[u]);
+    return buf;
+}
+
+std::wstring volumeName(const VolumeRecord& v) {
+    return v.label.empty() ? std::wstring(tr(Str::UnnamedVolume)) : widen(v.label);
+}
+
+const VolumeRecord* findVolume(int id) {
+    for (const auto& v : g_volumes)
+        if (v.id == id) return &v;
+    return nullptr;
+}
+
+void showError(const std::string& message) {
+    MessageBoxW(g_hwnd, widen(message).c_str(), L"ext4win", MB_OK | MB_ICONWARNING);
+}
+
+bool request(const std::vector<std::string>& req, std::string* okValue = nullptr,
+             bool reportErrors = true) {
+    std::vector<std::string> reply;
+    std::string error;
+    if (!pipeRequest(req, reply, error)) {
+        if (reportErrors) showError(error);
+        return false;
+    }
+    const std::string& last = reply.back();
+    if (last.rfind("ERR", 0) == 0) {
+        if (reportErrors) showError(last.size() > 4 ? last.substr(4) : last);
+        return false;
+    }
+    if (okValue) *okValue = last.size() > 3 ? last.substr(3) : "";
+    return true;
+}
+
+void openDrive(const std::wstring& mountPoint) {
+    if (mountPoint.empty()) return;
+    std::wstring path = mountPoint + L"\\";
+    ShellExecuteW(nullptr, L"open", path.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+}
+
+// --- notification icon ---------------------------------------------------------
+
+void updateTip() {
+    int mounted = 0;
+    for (const auto& v : g_volumes)
+        if (v.state == "mounted") ++mounted;
+    std::wstring tip = g_connected ? format(Str::TipMounted, mounted) : tr(Str::TipNoService);
+    wcsncpy_s(g_nid.szTip, tip.c_str(), _TRUNCATE);
+    g_nid.uFlags = NIF_TIP | NIF_SHOWTIP;
+    Shell_NotifyIconW(NIM_MODIFY, &g_nid);
+}
+
+void addIcon() {
+    SHSTOCKICONINFO sii{sizeof sii};
+    SHGetStockIconInfo(SIID_DRIVEREMOVE, SHGSI_ICON | SHGSI_SMALLICON, &sii);
+    g_nid.cbSize = sizeof g_nid;
+    g_nid.hWnd = g_hwnd;
+    g_nid.uID = 1;
+    g_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_SHOWTIP;
+    g_nid.uCallbackMessage = WM_TRAY;
+    g_nid.hIcon = sii.hIcon;
+    wcscpy_s(g_nid.szTip, tr(Str::TipNoService));
+    Shell_NotifyIconW(NIM_ADD, &g_nid);
+    g_nid.uVersion = NOTIFYICON_VERSION_4;
+    Shell_NotifyIconW(NIM_SETVERSION, &g_nid);
+}
+
+void balloon(const std::wstring& text, const std::wstring& target, bool warning = false) {
+    g_balloonTarget = target;
+    g_nid.uFlags = NIF_INFO;
+    wcsncpy_s(g_nid.szInfo, text.c_str(), _TRUNCATE);
+    wcscpy_s(g_nid.szInfoTitle, L"ext4win");
+    g_nid.dwInfoFlags = warning ? NIIF_WARNING : NIIF_INFO;
+    Shell_NotifyIconW(NIM_MODIFY, &g_nid);
+}
+
+// --- service state -------------------------------------------------------------
+
+void refreshVolumes() {
+    std::vector<std::string> reply;
+    std::string error;
+    g_volumes.clear();
+    if (pipeRequest({"LIST"}, reply, error)) {
+        for (const auto& line : reply) {
+            VolumeRecord v;
+            if (VolumeRecord::fromFields(splitFields(line), v)) g_volumes.push_back(v);
+        }
+    }
+    updateTip();
+}
+
+void showNextAsk() {
+    if (g_askShowing) return;
+    while (!g_askQueue.empty()) {
+        int id = g_askQueue.front();
+        g_askQueue.pop_front();
+        const VolumeRecord* found = findVolume(id);
+        if (!found || found->state != "available") continue;
+        VolumeRecord v = *found;  // the list may change while the dialog is open
+
+        std::wstring main = format(Str::AskMain, volumeName(v).c_str());
+        std::wstring content = format(Str::AskContent, sizeText(v.size).c_str(),
+                                      widen(v.disk).c_str(), v.partition);
+        if (!v.message.empty()) content += L"\n\n" + widen(v.message);
+
+        TASKDIALOG_BUTTON buttons[] = {{IDOK, tr(Str::AskMount)}, {IDCANCEL, tr(Str::AskSkip)}};
+        TASKDIALOGCONFIG cfg{sizeof cfg};
+        cfg.hwndParent = nullptr;
+        cfg.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_USE_COMMAND_LINKS_NO_ICON;
+        cfg.pszWindowTitle = tr(Str::AskTitle);
+        cfg.pszMainIcon = TD_INFORMATION_ICON;
+        cfg.pszMainInstruction = main.c_str();
+        cfg.pszContent = content.c_str();
+        cfg.cButtons = 2;
+        cfg.pButtons = buttons;
+        cfg.nDefaultButton = IDOK;
+        cfg.pszVerificationText = tr(Str::AskRemember);
+
+        g_askShowing = true;
+        int button = 0;
+        BOOL remember = FALSE;
+        SetForegroundWindow(g_hwnd);
+        HRESULT hr = TaskDialogIndirect(&cfg, &button, nullptr, &remember);
+        g_askShowing = false;
+        if (FAILED(hr)) continue;
+
+        std::string sid = std::to_string(id);
+        if (button == IDOK) {
+            if (remember) request({"POLICY", sid, "always"});  // also mounts
+            std::string mp;
+            if (findVolume(id) && request({"MOUNT", sid}, &mp)) openDrive(widen(mp));
+        } else if (remember) {
+            request({"POLICY", sid, "never"});
+        }
+    }
+}
+
+void handleEvent(const std::string& line) {
+    auto f = splitFields(line);
+    if (f.size() < 2 || f[0] != "EVENT") return;
+    if (f[1] == "CHANGED") {
+        refreshVolumes();
+    } else if (f[1] == "ASK" && f.size() > 2) {
+        refreshVolumes();
+        g_askQueue.push_back(std::atoi(f[2].c_str()));
+        PostMessageW(g_hwnd, WM_SHOW_NEXT_ASK, 0, 0);
+    } else if (f[1] == "MOUNTED" && f.size() > 3) {
+        refreshVolumes();
+        const VolumeRecord* v = findVolume(std::atoi(f[2].c_str()));
+        std::wstring name = v ? volumeName(*v) : tr(Str::UnnamedVolume);
+        balloon(format(Str::BalloonMounted, name.c_str(), widen(f[3]).c_str()), widen(f[3]));
+    }
+}
+
+// Keeps a SUBSCRIBE connection open and forwards events to the window.
+void eventThread() {
+    while (!g_quit) {
+        PipeStream pipe;
+        std::string line;
+        if (pipe.connect(1000) && pipe.writeLine("SUBSCRIBE") && pipe.readLine(line) &&
+            line == "OK") {
+            PostMessageW(g_hwnd, WM_PIPE_STATE, 1, 0);
+            while (!g_quit && pipe.readLine(line))
+                PostMessageW(g_hwnd, WM_PIPE_EVENT, 0, reinterpret_cast<LPARAM>(new std::string(line)));
+            PostMessageW(g_hwnd, WM_PIPE_STATE, 0, 0);
+        }
+        for (int i = 0; i < 30 && !g_quit; ++i) Sleep(100);  // retry every 3 s
+    }
+}
+
+// --- menu ------------------------------------------------------------------------
+
+void showMenu() {
+    HMENU menu = CreatePopupMenu();
+    if (!g_connected) {
+        AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, tr(Str::MenuServiceDown));
+    } else if (g_volumes.empty()) {
+        AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, tr(Str::MenuNoVolumes));
+    }
+    for (const auto& v : g_volumes) {
+        std::wstring text = volumeName(v) + L" (" + sizeText(v.size) + L")";
+        if (v.state == "mounted") text += L"  –  " + widen(v.mountPoint);
+        else if (v.state == "unsupported") text += L"  –  " + std::wstring(tr(Str::StateUnsupported));
+        else if (v.state == "error") text += L"  –  " + std::wstring(tr(Str::StateError));
+
+        UINT base = CMD_VOLUME_BASE + static_cast<UINT>(v.id) * 16;
+        HMENU sub = CreatePopupMenu();
+        if (v.state == "mounted") {
+            AppendMenuW(sub, MF_STRING, base + ActOpen, tr(Str::MenuOpen));
+            AppendMenuW(sub, MF_STRING, base + ActUnmount, tr(Str::MenuUnmount));
+            SetMenuDefaultItem(sub, base + ActOpen, FALSE);
+        } else if (v.state != "unsupported") {
+            AppendMenuW(sub, MF_STRING, base + ActMount, tr(Str::MenuMount));
+            SetMenuDefaultItem(sub, base + ActMount, FALSE);
+        }
+        if (!v.message.empty()) {
+            AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
+            AppendMenuW(sub, MF_STRING | MF_GRAYED, 0, widen(v.message).c_str());
+        }
+        AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
+        if (v.isImage) {
+            AppendMenuW(sub, MF_STRING, base + ActDetach, tr(Str::MenuDetach));
+        } else {
+            AppendMenuW(sub, MF_STRING, base + ActAsk, tr(Str::MenuPolicyAsk));
+            AppendMenuW(sub, MF_STRING, base + ActAlways, tr(Str::MenuPolicyAlways));
+            AppendMenuW(sub, MF_STRING, base + ActNever, tr(Str::MenuPolicyNever));
+            UINT checked = v.policy == "always" ? ActAlways : v.policy == "never" ? ActNever : ActAsk;
+            CheckMenuRadioItem(sub, base + ActAsk, base + ActNever, base + checked, MF_BYCOMMAND);
+        }
+        AppendMenuW(menu, MF_POPUP | MF_STRING, reinterpret_cast<UINT_PTR>(sub), text.c_str());
+    }
+    AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(menu, MF_STRING | (g_connected ? 0 : MF_GRAYED), CMD_ATTACH, tr(Str::MenuAttachImage));
+    AppendMenuW(menu, MF_STRING, CMD_EXIT, tr(Str::MenuExit));
+
+    POINT pt;
+    GetCursorPos(&pt);
+    SetForegroundWindow(g_hwnd);  // so the menu closes when clicking elsewhere
+    TrackPopupMenuEx(menu, TPM_RIGHTBUTTON | TPM_BOTTOMALIGN, pt.x, pt.y, g_hwnd, nullptr);
+    PostMessageW(g_hwnd, WM_NULL, 0, 0);
+    DestroyMenu(menu);
+}
+
+void attachImage() {
+    wchar_t file[MAX_PATH] = L"";
+    std::wstring filter = tr(Str::ImageFilter);
+    for (auto& c : filter)
+        if (c == L'|') c = L'\0';
+    OPENFILENAMEW ofn{sizeof ofn};
+    ofn.hwndOwner = g_hwnd;
+    ofn.lpstrFilter = filter.c_str();
+    ofn.lpstrFile = file;
+    ofn.nMaxFile = MAX_PATH;
+    ofn.lpstrTitle = tr(Str::OpenImageTitle);
+    ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_HIDEREADONLY;
+    if (!GetOpenFileNameW(&ofn)) return;
+    std::string count;
+    if (request({"ATTACH", narrow(file)}, &count))
+        balloon(format(Str::ImageAttached, std::atoi(count.c_str())), L"");
+}
+
+void onCommand(UINT cmd) {
+    if (cmd == CMD_EXIT) {
+        DestroyWindow(g_hwnd);
+        return;
+    }
+    if (cmd == CMD_ATTACH) {
+        attachImage();
+        return;
+    }
+    if (cmd < CMD_VOLUME_BASE) return;
+    int id = static_cast<int>((cmd - CMD_VOLUME_BASE) / 16);
+    int action = static_cast<int>((cmd - CMD_VOLUME_BASE) % 16);
+    const VolumeRecord* v = findVolume(id);
+    if (!v) return;
+    std::string sid = std::to_string(id);
+    std::string mp;
+    switch (action) {
+        case ActOpen: openDrive(widen(v->mountPoint)); break;
+        case ActMount:
+            if (request({"MOUNT", sid}, &mp)) openDrive(widen(mp));
+            break;
+        case ActUnmount: request({"UNMOUNT", sid}); break;
+        case ActDetach: request({"DETACH", sid}); break;
+        case ActAsk: request({"POLICY", sid, "ask"}); break;
+        case ActAlways: request({"POLICY", sid, "always"}); break;
+        case ActNever: request({"POLICY", sid, "never"}); break;
+    }
+}
+
+LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    switch (msg) {
+        case WM_TRAY:
+            switch (LOWORD(lp)) {
+                case WM_CONTEXTMENU:
+                case NIN_SELECT:
+                case NIN_KEYSELECT:
+                    showMenu();
+                    break;
+                case NIN_BALLOONUSERCLICK:
+                    openDrive(g_balloonTarget);
+                    break;
+            }
+            return 0;
+        case WM_PIPE_EVENT: {
+            std::unique_ptr<std::string> line(reinterpret_cast<std::string*>(lp));
+            handleEvent(*line);
+            return 0;
+        }
+        case WM_PIPE_STATE:
+            g_connected = wp != 0;
+            if (g_connected) refreshVolumes();
+            else {
+                g_volumes.clear();
+                updateTip();
+            }
+            return 0;
+        case WM_SHOW_NEXT_ASK:
+            showNextAsk();
+            return 0;
+        case WM_COMMAND:
+            onCommand(LOWORD(wp));
+            return 0;
+        case WM_DESTROY:
+            Shell_NotifyIconW(NIM_DELETE, &g_nid);
+            PostQuitMessage(0);
+            return 0;
+        default:
+            if (msg == g_taskbarCreated && msg != 0) {  // Explorer restarted
+                addIcon();
+                updateTip();
+                return 0;
+            }
+            return DefWindowProcW(hwnd, msg, wp, lp);
+    }
+}
+
+}  // namespace
+
+int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
+    HANDLE single = CreateMutexW(nullptr, TRUE, L"Local\\ext4win-tray");
+    if (GetLastError() == ERROR_ALREADY_EXISTS) return 0;  // already running
+
+    INITCOMMONCONTROLSEX icc{sizeof icc, ICC_STANDARD_CLASSES};
+    InitCommonControlsEx(&icc);
+    g_taskbarCreated = RegisterWindowMessageW(L"TaskbarCreated");
+
+    WNDCLASSEXW wc{sizeof wc};
+    wc.lpfnWndProc = wndProc;
+    wc.hInstance = instance;
+    wc.lpszClassName = L"ext4win-tray";
+    RegisterClassExW(&wc);
+    g_hwnd = CreateWindowExW(0, wc.lpszClassName, L"ext4win", 0, 0, 0, 0, 0, nullptr, nullptr,
+                             instance, nullptr);
+    addIcon();
+
+    std::thread events(eventThread);
+    MSG msg;
+    while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
+        TranslateMessage(&msg);
+        DispatchMessageW(&msg);
+    }
+    g_quit = true;
+    events.detach();  // may be blocked in ReadFile; ends with the process
+    CloseHandle(single);
+    return 0;
+}

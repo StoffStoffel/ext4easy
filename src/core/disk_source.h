@@ -8,9 +8,9 @@
 
 namespace ext4win {
 
-// Read-only access to an image file or a raw disk (\\.\PhysicalDriveN).
-// read() accepts any offset/length; sector alignment is handled internally.
-// Thread-safe.
+// Read-only access to an image file or a raw disk (\\.\PhysicalDriveN or a
+// device interface path like \\?\usbstor#disk...). read() accepts any
+// offset/length; sector alignment is handled internally. Thread-safe.
 class DiskSource {
 public:
     static std::shared_ptr<DiskSource> open(const std::wstring& path, std::wstring& error);
@@ -25,15 +25,23 @@ public:
     uint32_t sectorSize() const { return sectorSize_; }
     const std::wstring& path() const { return path_; }
     bool isPhysicalDisk() const { return physical_; }
+    bool isRemovable() const { return removable_; }
+    int deviceNumber() const { return deviceNumber_; }  // N of PhysicalDriveN, -1 if unknown
+    // "SanDisk Ultra" for disks, the file name for images.
+    const std::wstring& description() const { return description_; }
 
 private:
     DiskSource() = default;
+    void queryDescription();
 
     void* handle_ = nullptr;  // HANDLE
     uint64_t size_ = 0;
     uint32_t sectorSize_ = 512;
     bool physical_ = false;
+    bool removable_ = false;
+    int deviceNumber_ = -1;
     std::wstring path_;
+    std::wstring description_;
 
     std::mutex mutex_;
     uint8_t* bounce_ = nullptr;  // sector-aligned buffer for unaligned requests

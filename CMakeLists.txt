@@ -9,6 +9,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 add_compile_definitions(UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
+if(MSVC)
+    add_compile_options(/utf-8)  # source files are UTF-8 (umlauts in UI strings)
+endif()
 
 # --- lwext4 (vendored, see third_party/lwext4/PATCHES.md) -------------------
 file(GLOB LWEXT4_SOURCES ${CMAKE_SOURCE_DIR}/third_party/lwext4/src/*.c)
@@ -42,28 +45,42 @@ if(MSVC)
     target_compile_options(ext4core PRIVATE /W4 /permissive-)
 endif()
 
-# --- WinFsp (optional: only needed for mounting) ---------------------------
+# --- WinFsp (required) ------------------------------------------------------
 set(_pf86 "ProgramFiles(x86)")
 set(WINFSP_DIR "$ENV{${_pf86}}/WinFsp" CACHE PATH "WinFsp install directory")
-if(EXISTS "${WINFSP_DIR}/inc/winfsp/winfsp.h" AND EXISTS "${WINFSP_DIR}/lib/winfsp-x64.lib")
-    set(HAVE_WINFSP ON)
-    message(STATUS "WinFsp SDK found: ${WINFSP_DIR}")
-else()
-    set(HAVE_WINFSP OFF)
-    message(WARNING "WinFsp SDK not found in ${WINFSP_DIR} - building without mount support. "
-                    "Install WinFsp with the 'Developer' component.")
+if(NOT EXISTS "${WINFSP_DIR}/inc/winfsp/winfsp.h" OR NOT EXISTS "${WINFSP_DIR}/lib/winfsp-x64.lib")
+    message(FATAL_ERROR "WinFsp SDK not found in ${WINFSP_DIR}. "
+                        "Install WinFsp with the 'Developer' component.")
 endif()
 
-# --- command line tool ------------------------------------------------------
-add_executable(ext4win src/cli/main.cpp)
-target_link_libraries(ext4win PRIVATE ext4core)
-if(HAVE_WINFSP)
-    target_sources(ext4win PRIVATE src/mount/winfsp_fs.cpp)
-    target_include_directories(ext4win PRIVATE "${WINFSP_DIR}/inc")
-    target_link_libraries(ext4win PRIVATE "${WINFSP_DIR}/lib/winfsp-x64.lib" delayimp)
-    target_link_options(ext4win PRIVATE /DELAYLOAD:winfsp-x64.dll)
-    target_compile_definitions(ext4win PRIVATE HAVE_WINFSP=1)
-endif()
+# --- IPC: shared by service, CLI and tray app ------------------------------
+add_library(ext4ipc STATIC src/ipc/pipe.cpp)
+target_include_directories(ext4ipc PUBLIC ${CMAKE_SOURCE_DIR}/src)
+
+# --- ext4win.exe: CLI, mount, background service ---------------------------
+add_executable(ext4win
+    src/cli/main.cpp
+    src/mount/winfsp_fs.cpp
+    src/service/device_watcher.cpp
+    src/service/log.cpp
+    src/service/pipe_server.cpp
+    src/service/service_main.cpp
+    src/service/settings.cpp
+    src/service/volume_manager.cpp)
+target_include_directories(ext4win PRIVATE "${WINFSP_DIR}/inc")
+target_link_libraries(ext4win PRIVATE ext4core ext4ipc "${WINFSP_DIR}/lib/winfsp-x64.lib"
+    delayimp cfgmgr32 shell32 advapi32)
+target_link_options(ext4win PRIVATE /DELAYLOAD:winfsp-x64.dll)
+
+# --- ext4win-tray.exe ----------------------------------------------------------
+add_executable(ext4win-tray WIN32
+    src/tray/tray.cpp
+    src/tray/strings.cpp
+    src/tray/tray.manifest)
+target_link_libraries(ext4win-tray PRIVATE ext4ipc comctl32 shell32 comdlg32 ole32)
+
 if(MSVC)
     target_compile_options(ext4win PRIVATE /W4 /permissive-)
+    target_compile_options(ext4win-tray PRIVATE /W4 /permissive-)
+    target_compile_options(ext4ipc PRIVATE /W4 /permissive-)
 endif()

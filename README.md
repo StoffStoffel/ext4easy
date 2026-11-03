@@ -2,9 +2,25 @@
 
 Read Linux ext2/ext3/ext4 drives on Windows 10/11 — mounted as a normal drive letter in Explorer.
 
-Status: **phase 1 — read-only, command line.** Planned next: background service + tray app with automatic mounting when a drive is plugged in, then write support.
+Status: **phase 2 — read-only, background service + tray app.** Planned next: installer, then write support.
 
-## Usage
+## Installation (background service + tray app)
+
+From an administrator command prompt, in the folder with `ext4win.exe` and `ext4win-tray.exe`:
+
+```
+ext4win install      registers and starts the service, adds the tray app to autostart
+ext4win uninstall    removes both again
+```
+
+- The **service** runs as SYSTEM, notices plugged-in disks, finds ext partitions and mounts them read-only. Drive letters are visible to all users.
+- The **tray app** asks "Mount 'xyz'?" for new drives (with "remember for this drive"), lists all Linux drives with open/unmount, the per-drive rule (ask / always / never) and can mount image files.
+- Settings: `%ProgramData%\ext4win\volumes.conf` (per filesystem UUID: rule and last drive letter). Log: `%ProgramData%\ext4win\service.log`.
+- Any logged-on user can mount detected Linux drives read-only through the tray app, also partitions on internal disks. Linux file permissions are not applied.
+
+For testing without installing: `ext4win service --console` runs the service in a window; `ext4win ctl LIST` / `MOUNT id` / `ATTACH file.img` / `SUBSCRIBE` talk to it.
+
+## Command line
 
 ```
 ext4win list                         show all disks and their ext partitions (admin)
