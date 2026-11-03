@@ -12,6 +12,8 @@
   and `PATH`. Uninstall via *Settings → Apps*; WinFsp is kept.
 - Separate `ext4easy-<version>.msi` for PCs that already have WinFsp.
 - Own app icon and version information.
+- Tray menu *About…* (and the command line help) shows version, license and the
+  third-party notices, including the WinFsp copyright notice required by its license.
 - Memory card swaps in card readers are detected.
 - The service restarts itself after a crash; the tray app closes and restarts cleanly
   during updates.

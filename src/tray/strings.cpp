@@ -46,6 +46,30 @@ const Entry kStrings[] = {
      L"Image-Datei mit Linux-Dateisystem öffnen"},
     {Str::ImageAttached, L"%d Linux volume(s) mounted from the image.",
      L"%d Linux-Laufwerk(e) aus dem Image eingebunden."},
+    {Str::MenuAbout, L"&About...", L"&Info..."},
+    {Str::AboutTitle, L"About ext4easy", L"Info über ext4easy"},
+    {Str::AboutMain, L"ext4easy", L"ext4easy"},
+    // The WinFsp notice is required verbatim by the WinFsp FLOSS license
+    // exception (with a link to its repository) - keep it in English.
+    {Str::AboutContent,
+     L"Version %s\n"
+     L"Linux drives (ext2/ext3/ext4) on Windows.\n"
+     L"License: GNU General Public License v3 or later.\n\n"
+     L"Uses:\n"
+     L"WinFsp - Windows File System Proxy, Copyright (C) Bill Zissimopoulos\n"
+     L"<a href=\"https://github.com/winfsp/winfsp\">https://github.com/winfsp/winfsp</a>\n\n"
+     L"lwext4, Copyright (C) Grzegorz Kostka and contributors\n"
+     L"<a href=\"https://github.com/gkostka/lwext4\">https://github.com/gkostka/lwext4</a>",
+     L"Version %s\n"
+     L"Linux-Laufwerke (ext2/ext3/ext4) unter Windows.\n"
+     L"Lizenz: GNU General Public License v3 oder neuer.\n\n"
+     L"Verwendet:\n"
+     L"WinFsp - Windows File System Proxy, Copyright (C) Bill Zissimopoulos\n"
+     L"<a href=\"https://github.com/winfsp/winfsp\">https://github.com/winfsp/winfsp</a>\n\n"
+     L"lwext4, Copyright (C) Grzegorz Kostka und Mitwirkende\n"
+     L"<a href=\"https://github.com/gkostka/lwext4\">https://github.com/gkostka/lwext4</a>"},
+    {Str::AboutNotices, L"<a href=\"notices\">Show all license notices</a>",
+     L"<a href=\"notices\">Alle Lizenzhinweise anzeigen</a>"},
 };
 
 bool useGerman() {

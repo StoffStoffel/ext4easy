@@ -31,6 +31,11 @@ enum class Str {
     ImageFilter,       // pairs separated by '|'
     OpenImageTitle,
     ImageAttached,     // %d volumes
+    MenuAbout,
+    AboutTitle,
+    AboutMain,
+    AboutContent,      // %s version; may contain <a href> links
+    AboutNotices,      // footer link text
 };
 
 // Text in the user's UI language (German or English).
