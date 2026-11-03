@@ -50,12 +50,15 @@ int queryDeviceNumber(const std::wstring& devicePath) {
     return ok && num.DeviceType == FILE_DEVICE_DISK ? static_cast<int>(num.DeviceNumber) : -1;
 }
 
-std::shared_ptr<DiskSource> DiskSource::open(const std::wstring& path, std::wstring& error) {
+std::shared_ptr<DiskSource> DiskSource::open(const std::wstring& path, std::wstring& error,
+                                             bool writable) {
     std::shared_ptr<DiskSource> d(new DiskSource());
     d->path_ = path;
+    d->writable_ = writable;
 
-    HANDLE h = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                           nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    DWORD access = GENERIC_READ | (writable ? GENERIC_WRITE : 0);
+    HANDLE h = CreateFileW(path.c_str(), access, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (h == INVALID_HANDLE_VALUE) {
         DWORD e = GetLastError();
         error = L"Cannot open " + path + L": " + win32ErrorText(e);
@@ -155,21 +158,66 @@ bool DiskSource::read(uint64_t offset, void* buffer, size_t length) {
         uint64_t alignedLen = (skip + want + ss - 1) / ss * ss;
         alignedLen = std::min<uint64_t>(alignedLen, size_ - alignedStart);  // last partial sector of an image
 
-        OVERLAPPED ov{};
-        ov.Offset = static_cast<DWORD>(alignedStart);
-        ov.OffsetHigh = static_cast<DWORD>(alignedStart >> 32);
-        DWORD got = 0;
-        if (!ReadFile(static_cast<HANDLE>(handle_), bounce_, static_cast<DWORD>(alignedLen), &got,
-                      &ov))
-            return false;
-        if (got < skip + want) return false;
-
+        if (!readAligned(alignedStart, bounce_, static_cast<size_t>(alignedLen))) return false;
         std::memcpy(out, bounce_ + skip, want);
         out += want;
         offset += want;
         length -= want;
     }
     return true;
+}
+
+bool DiskSource::write(uint64_t offset, const void* data, size_t length) {
+    if (!writable_) return false;
+    if (length == 0) return true;
+    if (offset > size_ || length > size_ - offset) return false;
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto* in = static_cast<const uint8_t*>(data);
+    const uint64_t ss = sectorSize_;
+
+    while (length > 0) {
+        uint64_t alignedStart = offset / ss * ss;
+        size_t skip = static_cast<size_t>(offset - alignedStart);
+        size_t want = std::min(length, bounceSize_ - static_cast<size_t>(ss));
+        uint64_t alignedLen = (skip + want + ss - 1) / ss * ss;
+        alignedLen = std::min<uint64_t>(alignedLen, size_ - alignedStart);
+
+        // Partial sectors at either end: read them first (read-modify-write).
+        if (skip != 0 || (skip + want) % ss != 0) {
+            if (!readAligned(alignedStart, bounce_, static_cast<size_t>(alignedLen))) return false;
+        }
+        std::memcpy(bounce_ + skip, in, want);
+        if (!writeAligned(alignedStart, bounce_, static_cast<size_t>(alignedLen))) return false;
+        in += want;
+        offset += want;
+        length -= want;
+    }
+    return true;
+}
+
+bool DiskSource::flush() {
+    if (!writable_) return true;
+    std::lock_guard<std::mutex> lock(mutex_);
+    return FlushFileBuffers(static_cast<HANDLE>(handle_)) != FALSE;
+}
+
+bool DiskSource::readAligned(uint64_t offset, uint8_t* buf, size_t len) {
+    OVERLAPPED ov{};
+    ov.Offset = static_cast<DWORD>(offset);
+    ov.OffsetHigh = static_cast<DWORD>(offset >> 32);
+    DWORD got = 0;
+    return ReadFile(static_cast<HANDLE>(handle_), buf, static_cast<DWORD>(len), &got, &ov) &&
+           got == len;
+}
+
+bool DiskSource::writeAligned(uint64_t offset, const uint8_t* buf, size_t len) {
+    OVERLAPPED ov{};
+    ov.Offset = static_cast<DWORD>(offset);
+    ov.OffsetHigh = static_cast<DWORD>(offset >> 32);
+    DWORD done = 0;
+    return WriteFile(static_cast<HANDLE>(handle_), buf, static_cast<DWORD>(len), &done, &ov) &&
+           done == len;
 }
 
 }  // namespace ext4easy

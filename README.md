@@ -79,11 +79,25 @@ Output in `out\installer\`: `ext4easy-setup-<version>.exe` (WinFsp + ext4easy) a
 
 ## Tests
 
+Reading (mounted image, checksums of all files):
+
 ```
 wsl bash tests/make_test_images.sh build/testdata
 build\Release\ext4easy.exe mount build\testdata\plain.img Q:
 python tests/verify_mount.py Q: build/testdata/expected.txt
 ```
+
+Writing (needs WSL with e2fsprogs; images are created and checked by Linux's own tools):
+
+```
+powershell -ExecutionPolicy Bypass -File tests\run_all.ps1
+```
+
+This runs:
+- `run_scenarios.ps1` – small fixed write sequences (truncate, sparse files, holes), each checked with `e2fsck`
+- `run_stress.ps1` – `ext4stress`: thousands of random operations (create, write anywhere, truncate, delete, mkdir/rmdir, rename/move, timestamps, error cases) mirrored in an in-memory model, compared after every few hundred operations and after remounts; afterwards `e2fsck` must be clean and every file must match on Linux. Five filesystem variants (current defaults, 1 KiB blocks, no checksums, no journal, no 64bit/flex_bg); ext3 must be refused for writing.
+- disk-full runs (`-Fill`): writing until ENOSPC must fail cleanly and leave a consistent filesystem
+- `crash_test.ps1` – kills the writer at a random moment; replaying the journal must be enough, no repairs
 
 ## Licence
 

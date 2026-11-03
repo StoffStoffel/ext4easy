@@ -177,10 +177,71 @@ uint32_t ext4_crc32(uint32_t crc, const void *buf, uint32_t size)
 	return crc32(crc, buf, size, crc32_tab);
 }
 
+/* lwext4-win: CRC32C with the SSE4.2 crc32 instruction (same reflected
+ * Castagnoli polynomial, no inversion - a drop-in for the table version).
+ * Metadata checksums are computed very often (e.g. over the whole block
+ * bitmap on every allocation), so this matters for write speed. */
+#if defined(_MSC_VER) && defined(_M_X64)
+#include <intrin.h>
+#include <nmmintrin.h>
+
+static uint32_t crc32c_sse42(uint32_t crc, const void *buf, uint32_t size)
+{
+	const uint8_t *p = (const uint8_t *)buf;
+	uint64_t c = crc;
+
+	while (size && ((uintptr_t)p & 7)) {
+		c = _mm_crc32_u8((uint32_t)c, *p++);
+		size--;
+	}
+	while (size >= 8) {
+		c = _mm_crc32_u64(c, *(const uint64_t *)p);
+		p += 8;
+		size -= 8;
+	}
+	while (size--)
+		c = _mm_crc32_u8((uint32_t)c, *p++);
+	return (uint32_t)c;
+}
+
+/* -1 = not checked yet, 0 = table, 1 = SSE4.2 */
+static int crc32c_use_hw = -1;
+
+static int crc32c_detect(void)
+{
+	int regs[4];
+	uint8_t test[257];
+	uint32_t i;
+
+	__cpuid(regs, 1);
+	if (!((regs[2] >> 20) & 1))
+		return 0;
+
+	/* self test against the table version */
+	for (i = 0; i < sizeof(test); i++)
+		test[i] = (uint8_t)(i * 31 + 7);
+	for (i = 0; i < 16; i++) {
+		if (crc32c_sse42(0x12345678u + i, test + i, sizeof(test) - i) !=
+		    crc32(0x12345678u + i, test + i, sizeof(test) - i, crc32c_tab))
+			return 0;
+	}
+	return 1;
+}
+
+uint32_t ext4_crc32c(uint32_t crc, const void *buf, uint32_t size)
+{
+	if (crc32c_use_hw < 0)
+		crc32c_use_hw = crc32c_detect();
+	if (crc32c_use_hw)
+		return crc32c_sse42(crc, buf, size);
+	return crc32(crc, buf, size, crc32c_tab);
+}
+#else
 uint32_t ext4_crc32c(uint32_t crc, const void *buf, uint32_t size)
 {
 	return crc32(crc, buf, size, crc32c_tab);
 }
+#endif
 
 /**
  * @}

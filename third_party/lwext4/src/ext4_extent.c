@@ -1280,6 +1280,9 @@ static int ext4_ext_insert_leaf(struct ext4_inode_ref *inode_ref,
 		    ext4_ext_can_prepend(curp->extent, newext)) {
 			unwritten = ext4_ext_is_unwritten(curp->extent);
 			curp->extent->first_block = newext->first_block;
+			/* lwext4-win: the merged extent now starts at the new
+			 * extent's physical block, too */
+			ext4_ext_store_pblock(curp->extent, ext4_ext_pblock(newext));
 			curp->extent->block_count =
 			    to_le16(ext4_ext_get_actual_len(curp->extent) +
 				    ext4_ext_get_actual_len(newext));
@@ -1721,13 +1724,14 @@ int ext4_extent_remove_space(struct ext4_inode_ref *inode_ref, ext4_lblk_t from,
 	bool in_range = IN_RANGE(from, to_le32(path[depth].extent->first_block),
 				 ext4_ext_get_actual_len(path[depth].extent));
 
-	if (!in_range) {
-		ret = EOK;
-		goto out;
-	}
+	/* lwext4-win: 'from' may lie in a hole (between extents, or before the
+	 * first one). Removal must then start at the next extent; it used to
+	 * stop here and leave all later blocks allocated. */
+	if (!in_range && to_le32(path[depth].extent->first_block) < from)
+		path[depth].extent++;
 
 	/* If we do remove_space inside the range of an extent */
-	if ((to_le32(path[depth].extent->first_block) < from) &&
+	if (in_range && (to_le32(path[depth].extent->first_block) < from) &&
 	    (to < to_le32(path[depth].extent->first_block) +
 		      ext4_ext_get_actual_len(path[depth].extent) - 1)) {
 

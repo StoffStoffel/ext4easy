@@ -759,7 +759,8 @@ static int ext4_path_check(const char *path, bool *is_goal)
 {
 	int i;
 
-	for (i = 0; i < EXT4_DIRECTORY_FILENAME_LEN; ++i) {
+	/* lwext4-win: <= so that 255-byte names (the maximum) are accepted */
+	for (i = 0; i <= EXT4_DIRECTORY_FILENAME_LEN; ++i) {
 
 		if (path[i] == '/') {
 			*is_goal = false;
@@ -1645,6 +1646,82 @@ Finish:
 
 }
 
+int ext4_fextend(ext4_file *f, uint64_t size)
+{
+	int r;
+	struct ext4_inode_ref ref;
+	ext4_assert(f && f->mp);
+
+	if (f->mp->fs.read_only)
+		return EROFS;
+
+	EXT4_MP_LOCK(f->mp);
+	ext4_trans_start(f->mp);
+
+	struct ext4_fs *const fs = &f->mp->fs;
+	r = ext4_fs_get_inode_ref(fs, f->inode, &ref);
+	if (r != EOK) {
+		ext4_trans_abort(f->mp);
+		EXT4_MP_UNLOCK(f->mp);
+		return r;
+	}
+
+	uint64_t fsize = ext4_inode_get_size(&fs->sb, ref.inode);
+	uint32_t block_size = ext4_sb_get_block_size(&fs->sb);
+	f->fsize = fsize;
+	if (size <= fsize)
+		goto Finish;
+
+	/* Holes can only be represented with extents. */
+	if (!ext4_sb_feature_incom(&fs->sb, EXT4_FINCOM_EXTENTS) ||
+	    !ext4_inode_has_flag(ref.inode, EXT4_INODE_FLAG_EXTENTS)) {
+		r = ENOTSUP;
+		goto Finish;
+	}
+
+	/* Bytes after the old end in the last block must read as zero. */
+	uint32_t tail = (uint32_t)(fsize % block_size);
+	if (tail) {
+		ext4_fsblk_t fblk = 0;
+		r = ext4_fs_get_inode_dblk_idx(&ref, (ext4_lblk_t)(fsize / block_size),
+					       &fblk, true);
+		if (r != EOK)
+			goto Finish;
+		if (fblk) {
+			uint64_t n = block_size - tail;
+			if (n > size - fsize)
+				n = size - fsize;
+			uint8_t *zeros = ext4_calloc(1, (size_t)n);
+			if (!zeros) {
+				r = ENOMEM;
+				goto Finish;
+			}
+			r = ext4_block_writebytes(fs->bdev, fblk * block_size + tail,
+						  zeros, (uint32_t)n);
+			ext4_free(zeros);
+			if (r != EOK)
+				goto Finish;
+		}
+	}
+
+	ext4_inode_set_size(ref.inode, size);
+	ref.dirty = true;
+	f->fsize = size;
+
+Finish:
+	{
+		int rr = ext4_fs_put_inode_ref(&ref);
+		if (r == EOK)
+			r = rr;
+	}
+	if (r != EOK)
+		ext4_trans_abort(f->mp);
+	else
+		ext4_trans_stop(f->mp);
+	EXT4_MP_UNLOCK(f->mp);
+	return r;
+}
+
 int ext4_ftruncate(ext4_file *f, uint64_t size)
 {
 	int r;
@@ -1836,6 +1913,20 @@ Finish:
 	return r;
 }
 
+/* lwext4-win: zero-fill a freshly allocated data block, so that a partial
+ * write does not leave stale disk contents visible in the rest of it. */
+static int ext4_fwrite_zero_block(struct ext4_blockdev *bdev, ext4_fsblk_t fblk,
+				  uint32_t block_size)
+{
+	int r;
+	uint8_t *zeros = ext4_calloc(1, block_size);
+	if (!zeros)
+		return ENOMEM;
+	r = ext4_block_writebytes(bdev, fblk * block_size, zeros, block_size);
+	ext4_free(zeros);
+	return r;
+}
+
 int ext4_fwrite(ext4_file *file, const void *buf, size_t size, size_t *wcnt)
 {
 	uint32_t unalg;
@@ -1895,9 +1986,25 @@ int ext4_fwrite(ext4_file *file, const void *buf, size_t size, size_t *wcnt)
 		if (size > (block_size - unalg))
 			len = block_size - unalg;
 
+		ext4_fsblk_t old_fblk = 0;
+		r = ext4_fs_get_inode_dblk_idx(&ref, iblk_idx, &old_fblk, true);
+		if (r != EOK)
+			goto Finish;
+
 		r = ext4_fs_init_inode_dblk_idx(&ref, iblk_idx, &fblk);
 		if (r != EOK)
 			goto Finish;
+
+		/* lwext4-win: holes in non-extent files cannot be allocated */
+		if (fblk == 0) {
+			r = EIO;
+			goto Finish;
+		}
+		if (old_fblk == 0) {
+			r = ext4_fwrite_zero_block(file->mp->fs.bdev, fblk, block_size);
+			if (r != EOK)
+				goto Finish;
+		}
 
 		off = fblk * block_size + unalg;
 		r = ext4_block_writebytes(file->mp->fs.bdev, off, u8_buf, len);
@@ -1942,6 +2049,12 @@ int ext4_fwrite(ext4_file *file, const void *buf, size_t size, size_t *wcnt)
 
 			iblk_idx++;
 
+			/* lwext4-win: never write to block 0 (unallocated hole) */
+			if (fblk == 0) {
+				r = EIO;
+				goto Finish;
+			}
+
 			if (!fblock_start) {
 				fblock_start = fblk;
 			}
@@ -1984,7 +2097,12 @@ int ext4_fwrite(ext4_file *file, const void *buf, size_t size, size_t *wcnt)
 
 	if (size) {
 		uint64_t off;
+		ext4_fsblk_t old_fblk = 0;
 		if (iblk_idx < ifile_blocks) {
+			r = ext4_fs_get_inode_dblk_idx(&ref, iblk_idx, &old_fblk,
+						       true);
+			if (r != EOK)
+				goto Finish;
 			r = ext4_fs_init_inode_dblk_idx(&ref, iblk_idx, &fblk);
 			if (r != EOK)
 				goto Finish;
@@ -1993,6 +2111,17 @@ int ext4_fwrite(ext4_file *file, const void *buf, size_t size, size_t *wcnt)
 			if (r != EOK)
 				/*Node size sholud be updated.*/
 				goto out_fsize;
+		}
+
+		/* lwext4-win: refuse holes we cannot allocate, zero new blocks */
+		if (fblk == 0) {
+			r = EIO;
+			goto Finish;
+		}
+		if (old_fblk == 0) {
+			r = ext4_fwrite_zero_block(file->mp->fs.bdev, fblk, block_size);
+			if (r != EOK)
+				goto Finish;
 		}
 
 		off = fblk * block_size;
@@ -2172,6 +2301,67 @@ int ext4_inode_exist(const char *path, int type)
 	r = ext4_generic_open2(&f, path, O_RDONLY, type, NULL, NULL);
 	EXT4_MP_UNLOCK(mp);
 
+	return r;
+}
+
+static void ext4_encode_time(int64_t sec, uint32_t nsec, uint32_t *lo,
+			     uint32_t *extra)
+{
+	*lo = to_le32((uint32_t)sec);
+	*extra = to_le32((uint32_t)(((sec - (int32_t)sec) >> 32) & 3) |
+			 (nsec << 2));
+}
+
+int ext4_times_set(const char *path, const struct ext4_times *t)
+{
+	int r;
+	struct ext4_inode_ref ref;
+	struct ext4_mountpoint *mp = ext4_get_mount(path);
+
+	if (!mp)
+		return ENOENT;
+	if (mp->fs.read_only)
+		return EROFS;
+
+	EXT4_MP_LOCK(mp);
+	r = ext4_trans_get_inode_ref(path, mp, &ref);
+	if (r != EOK)
+		goto Finish;
+
+	struct ext4_inode *in = ref.inode;
+	uint32_t extra = 0;
+	if (ext4_get16(&mp->fs.sb, inode_size) > EXT4_GOOD_OLD_INODE_SIZE)
+		extra = to_le16(in->extra_isize);
+#define HAS_FIELD(end) (EXT4_GOOD_OLD_INODE_SIZE + extra >= (end))
+	uint32_t lo, ex;
+	if (t->mask & EXT4_TIME_ATIME) {
+		ext4_encode_time(t->sec[0], t->nsec[0], &lo, &ex);
+		in->access_time = lo;
+		if (HAS_FIELD(0x90))
+			in->atime_extra = ex;
+	}
+	if (t->mask & EXT4_TIME_MTIME) {
+		ext4_encode_time(t->sec[1], t->nsec[1], &lo, &ex);
+		in->modification_time = lo;
+		if (HAS_FIELD(0x8C))
+			in->mtime_extra = ex;
+	}
+	if (t->mask & EXT4_TIME_CTIME) {
+		ext4_encode_time(t->sec[2], t->nsec[2], &lo, &ex);
+		in->change_inode_time = lo;
+		if (HAS_FIELD(0x88))
+			in->ctime_extra = ex;
+	}
+	if ((t->mask & EXT4_TIME_CRTIME) && HAS_FIELD(0x98)) {
+		ext4_encode_time(t->sec[3], t->nsec[3], &lo, &ex);
+		in->crtime = lo;
+		in->crtime_extra = ex;
+	}
+#undef HAS_FIELD
+	ref.dirty = true;
+	r = ext4_trans_put_inode_ref(mp, &ref);
+Finish:
+	EXT4_MP_UNLOCK(mp);
 	return r;
 }
 
