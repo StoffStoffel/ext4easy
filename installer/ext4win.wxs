@@ -56,6 +56,12 @@
         <Component Id="Readme" Bitness="always64">
           <File Id="README.md" Source="..\README.md" KeyPath="yes" />
         </Component>
+        <Component Id="ThirdPartyNotices" Bitness="always64">
+          <File Id="THIRD_PARTY_NOTICES.md" Source="..\THIRD-PARTY-NOTICES.md" KeyPath="yes" />
+        </Component>
+        <Component Id="Changelog" Bitness="always64">
+          <File Id="CHANGELOG.md" Source="..\CHANGELOG.md" KeyPath="yes" />
+        </Component>
       </Directory>
     </StandardDirectory>
 
@@ -74,6 +80,8 @@
       <ComponentRef Id="TrayExe" />
       <ComponentRef Id="License" />
       <ComponentRef Id="Readme" />
+      <ComponentRef Id="ThirdPartyNotices" />
+      <ComponentRef Id="Changelog" />
       <ComponentRef Id="StartMenuShortcut" />
     </Feature>
   </Package>

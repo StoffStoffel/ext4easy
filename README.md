@@ -87,4 +87,4 @@ python tests/verify_mount.py Q: build/testdata/expected.txt
 
 ## Licence
 
-GPL-3.0-or-later. Uses [lwext4](https://github.com/gkostka/lwext4) (BSD-3 / GPL-2.0-or-later, vendored with fixes listed in `third_party/lwext4/PATCHES.md`) and [WinFsp](https://winfsp.dev) (GPLv3 with FLOSS exception).
+GPL-3.0-or-later. Uses [lwext4](https://github.com/gkostka/lwext4) (BSD-3 / GPL-2.0-or-later, vendored with fixes listed in `third_party/lwext4/PATCHES.md`) and [WinFsp](https://github.com/winfsp/winfsp) (GPLv3 with FLOSS exception) – **WinFsp - Windows File System Proxy, Copyright (C) Bill Zissimopoulos**. Details and license texts: [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Version history: [CHANGELOG.md](CHANGELOG.md).
