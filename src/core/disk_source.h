@@ -48,6 +48,10 @@ private:
     size_t bounceSize_ = 0;
 };
 
+// N of \\.\PhysicalDriveN for a disk or volume device path, -1 on failure.
+// Works without media and without administrator rights.
+int queryDeviceNumber(const std::wstring& devicePath);
+
 // Win32 error code as readable text.
 std::wstring win32ErrorText(unsigned long code);
 

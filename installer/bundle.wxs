@@ -1,0 +1,34 @@
+<!--
+  ext4win-setup.exe (WiX Toolset v5 bundle): installs WinFsp, then ext4win.
+  Variables: Version, WinFspMsi, Ext4winMsi.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
+  <Bundle Name="ext4win"
+          Version="$(Version)"
+          Manufacturer="ext4win project"
+          UpgradeCode="42228CE3-1F13-457C-A7C2-DA53449719DB"
+          IconSourceFile="..\res\ext4win.ico">
+
+    <BootstrapperApplication>
+      <bal:WixStandardBootstrapperApplication
+          Theme="hyperlinkLicense"
+          LicenseUrl="https://www.gnu.org/licenses/gpl-3.0.html"
+          LogoFile="..\res\ext4win-64.png"
+          LaunchTarget="[ProgramFiles64Folder]ext4win\ext4win-tray.exe"
+          SuppressOptionsUI="yes" />
+    </BootstrapperApplication>
+
+    <Chain>
+      <!-- Permanent: other programs may use WinFsp too, so uninstalling
+           ext4win leaves it in place. If a newer WinFsp is already
+           installed, Burn skips this package. -->
+      <MsiPackage SourceFile="$(WinFspMsi)" Permanent="yes" Visible="yes" />
+
+      <MsiPackage SourceFile="$(Ext4winMsi)">
+        <!-- the bundle is the entry in "Apps & features", not the MSI -->
+        <MsiProperty Name="ARPSYSTEMCOMPONENT" Value="1" />
+      </MsiPackage>
+    </Chain>
+  </Bundle>
+</Wix>

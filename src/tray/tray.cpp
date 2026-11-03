@@ -132,14 +132,14 @@ void updateTip() {
 }
 
 void addIcon() {
-    SHSTOCKICONINFO sii{sizeof sii};
-    SHGetStockIconInfo(SIID_DRIVEREMOVE, SHGSI_ICON | SHGSI_SMALLICON, &sii);
+    static HICON icon = nullptr;  // resource 1 = res/ext4win.ico, sized for the current DPI
+    if (!icon) LoadIconMetric(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(1), LIM_SMALL, &icon);
     g_nid.cbSize = sizeof g_nid;
     g_nid.hWnd = g_hwnd;
     g_nid.uID = 1;
     g_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_SHOWTIP;
     g_nid.uCallbackMessage = WM_TRAY;
-    g_nid.hIcon = sii.hIcon;
+    g_nid.hIcon = icon;
     wcscpy_s(g_nid.szTip, tr(Str::TipNoService));
     Shell_NotifyIconW(NIM_ADD, &g_nid);
     g_nid.uVersion = NOTIFYICON_VERSION_4;
@@ -382,6 +382,11 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_COMMAND:
             onCommand(LOWORD(wp));
             return 0;
+        case WM_QUERYENDSESSION:
+            return TRUE;  // also sent by the installer's Restart Manager
+        case WM_ENDSESSION:
+            if (wp) DestroyWindow(hwnd);
+            return 0;
         case WM_DESTROY:
             Shell_NotifyIconW(NIM_DELETE, &g_nid);
             PostQuitMessage(0);
@@ -409,11 +414,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     WNDCLASSEXW wc{sizeof wc};
     wc.lpfnWndProc = wndProc;
     wc.hInstance = instance;
+    wc.hIcon = LoadIconW(instance, MAKEINTRESOURCEW(1));
     wc.lpszClassName = L"ext4win-tray";
     RegisterClassExW(&wc);
     g_hwnd = CreateWindowExW(0, wc.lpszClassName, L"ext4win", 0, 0, 0, 0, 0, nullptr, nullptr,
                              instance, nullptr);
     addIcon();
+    // Let Windows restart the tray app after an update closed it.
+    RegisterApplicationRestart(L"", RESTART_NO_CRASH | RESTART_NO_HANG | RESTART_NO_REBOOT);
 
     std::thread events(eventThread);
     MSG msg;

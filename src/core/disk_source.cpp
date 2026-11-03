@@ -36,6 +36,20 @@ std::wstring win32ErrorText(unsigned long code) {
     return text + L" (" + std::to_wstring(code) + L")";
 }
 
+int queryDeviceNumber(const std::wstring& devicePath) {
+    std::wstring path = devicePath;
+    if (!path.empty() && path.back() == L'\\') path.pop_back();  // volume paths may end with a backslash
+    HANDLE h = CreateFileW(path.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                           OPEN_EXISTING, 0, nullptr);
+    if (h == INVALID_HANDLE_VALUE) return -1;
+    STORAGE_DEVICE_NUMBER num{};
+    DWORD ret = 0;
+    BOOL ok = DeviceIoControl(h, IOCTL_STORAGE_GET_DEVICE_NUMBER, nullptr, 0, &num, sizeof num,
+                              &ret, nullptr);
+    CloseHandle(h);
+    return ok && num.DeviceType == FILE_DEVICE_DISK ? static_cast<int>(num.DeviceNumber) : -1;
+}
+
 std::shared_ptr<DiskSource> DiskSource::open(const std::wstring& path, std::wstring& error) {
     std::shared_ptr<DiskSource> d(new DiskSource());
     d->path_ = path;

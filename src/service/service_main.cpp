@@ -42,11 +42,13 @@ struct Components {
             logLine(error);
             return false;
         }
-        watcher.start([this](const std::wstring& path, bool arrived) {
-            if (arrived)
-                manager.diskArrived(path);
-            else
-                manager.diskRemoved(path);
+        watcher.start([this](const std::wstring& path, DeviceWatcher::Event ev) {
+            switch (ev) {
+                case DeviceWatcher::Event::DiskArrived: manager.diskArrived(path); break;
+                case DeviceWatcher::Event::DiskRemoved: manager.diskRemoved(path); break;
+                case DeviceWatcher::Event::VolumeArrived: manager.volumeArrived(path); break;
+                case DeviceWatcher::Event::VolumeRemoved: manager.volumeRemoved(); break;
+            }
         });
         return true;
     }
@@ -56,6 +58,28 @@ struct Components {
         manager.unmountAll();
     }
 };
+
+// Restart automatically if the service crashes (5 s delay, twice per day).
+void setFailureActions(SC_HANDLE svc) {
+    SC_ACTION actions[3] = {{SC_ACTION_RESTART, 5000}, {SC_ACTION_RESTART, 5000}, {SC_ACTION_NONE, 0}};
+    SERVICE_FAILURE_ACTIONSW fa{};
+    fa.dwResetPeriod = 24 * 3600;
+    fa.cActions = 3;
+    fa.lpsaActions = actions;
+    ChangeServiceConfig2W(svc, SERVICE_CONFIG_FAILURE_ACTIONS, &fa);
+}
+
+// Called at service start, so installers do not need to set it up.
+void configureOwnFailureActions() {
+    SC_HANDLE scm = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
+    if (!scm) return;
+    SC_HANDLE svc = OpenServiceW(scm, kServiceName, SERVICE_CHANGE_CONFIG | SERVICE_START);
+    if (svc) {
+        setFailureActions(svc);
+        CloseServiceHandle(svc);
+    }
+    CloseServiceHandle(scm);
+}
 
 void setStatus(DWORD state, DWORD exitCode = NO_ERROR) {
     g_status.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
@@ -82,6 +106,7 @@ void WINAPI serviceMain(DWORD, LPWSTR*) {
     setStatus(SERVICE_START_PENDING);
     logInit(false);
     logLine("service starting");
+    configureOwnFailureActions();
 
     g_stopEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
     auto c = std::make_unique<Components>();
@@ -190,13 +215,7 @@ int installService() {
 
     SERVICE_DESCRIPTIONW desc{const_cast<LPWSTR>(kServiceDescription)};
     ChangeServiceConfig2W(svc, SERVICE_CONFIG_DESCRIPTION, &desc);
-    // Restart automatically if the service crashes.
-    SC_ACTION actions[3] = {{SC_ACTION_RESTART, 5000}, {SC_ACTION_RESTART, 5000}, {SC_ACTION_NONE, 0}};
-    SERVICE_FAILURE_ACTIONSW fa{};
-    fa.dwResetPeriod = 24 * 3600;
-    fa.cActions = 3;
-    fa.lpsaActions = actions;
-    ChangeServiceConfig2W(svc, SERVICE_CONFIG_FAILURE_ACTIONS, &fa);
+    setFailureActions(svc);
 
     if (!StartServiceW(svc, 0, nullptr) && GetLastError() != ERROR_SERVICE_ALREADY_RUNNING) {
         printError(L"cannot start service");

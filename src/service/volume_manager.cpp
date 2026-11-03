@@ -31,6 +31,7 @@ struct VolumeManager::Disk {
     std::shared_ptr<DiskSource> src;
     bool isImage = false;
     std::vector<int> volumeIds;
+    std::string signature;  // ext partitions (offset + UUID), to notice media changes
 };
 
 namespace {
@@ -51,6 +52,17 @@ std::string volumeName(const Partition& p) {
     return p.ext.label.empty() ? p.ext.kind + " @" + std::to_string(p.number) : p.ext.label;
 }
 
+std::string signatureOf(const std::vector<Partition>& parts) {
+    std::string sig;
+    for (const auto& p : parts)
+        if (p.ext.found) sig += std::to_string(p.offset) + ":" + p.ext.uuid + ";";
+    return sig;
+}
+
+std::wstring physicalDrivePath(int number) {
+    return L"\\\\.\\PhysicalDrive" + std::to_wstring(number);
+}
+
 }  // namespace
 
 VolumeManager::VolumeManager() { settings_.load(); }
@@ -59,8 +71,10 @@ VolumeManager::~VolumeManager() { unmountAll(); }
 
 void VolumeManager::diskArrived(const std::wstring& devicePath) {
     std::wstring key = normalizeKey(devicePath);
+    int number = queryDeviceNumber(devicePath);  // also works for card readers without media
     {
         std::lock_guard<std::mutex> lock(mutex_);
+        if (number >= 0) interfaceByNumber_[number] = key;
         if (disks_.count(key)) return;
     }
     std::wstring error;
@@ -69,18 +83,72 @@ void VolumeManager::diskArrived(const std::wstring& devicePath) {
         logLine(L"cannot open disk: " + error);
         return;
     }
+    auto parts = scanPartitions(*src);
     std::lock_guard<std::mutex> lock(mutex_);
     if (disks_.count(key)) return;
     for (const auto& [k, d] : disks_) {
         if (!d->isImage && src->deviceNumber() >= 0 && d->src->deviceNumber() == src->deviceNumber())
             return;  // same disk seen through another path
     }
-    addDiskLocked(std::move(src), key, false);
+    addDiskLocked(std::move(src), key, false, std::move(parts));
 }
 
 void VolumeManager::diskRemoved(const std::wstring& devicePath) {
     std::lock_guard<std::mutex> lock(mutex_);
-    removeDiskLocked(normalizeKey(devicePath));
+    std::wstring key = normalizeKey(devicePath);
+    for (auto it = interfaceByNumber_.begin(); it != interfaceByNumber_.end();)
+        it = it->second == key ? interfaceByNumber_.erase(it) : std::next(it);
+    removeDiskLocked(key);
+}
+
+void VolumeManager::volumeArrived(const std::wstring& volumePath) {
+    int number = queryDeviceNumber(volumePath);
+    if (number >= 0) recheckDisk(number);
+}
+
+void VolumeManager::volumeRemoved() {
+    // The removed volume can no longer be asked for its disk, so check all
+    // removable disks (cheap: reads a few sectors each).
+    std::vector<int> numbers;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        for (const auto& [k, d] : disks_)
+            if (!d->isImage && d->src->isRemovable() && d->src->deviceNumber() >= 0)
+                numbers.push_back(d->src->deviceNumber());
+    }
+    for (int n : numbers) recheckDisk(n);
+}
+
+void VolumeManager::recheckDisk(int number) {
+    std::wstring key;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto it = interfaceByNumber_.find(number);
+        key = it != interfaceByNumber_.end() ? it->second : normalizeKey(physicalDrivePath(number));
+    }
+    // Read outside the lock. No media -> open fails -> treated as empty.
+    std::wstring error;
+    auto src = DiskSource::open(physicalDrivePath(number), error);
+    std::vector<Partition> parts;
+    if (src) parts = scanPartitions(*src);
+    std::string sig = src ? signatureOf(parts) : "";
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = disks_.find(key);
+    if (it == disks_.end()) {
+        for (auto d = disks_.begin(); d != disks_.end(); ++d) {
+            if (!d->second->isImage && d->second->src->deviceNumber() == number) {
+                it = d;
+                key = d->first;
+                break;
+            }
+        }
+    }
+    if (it != disks_.end() && it->second->signature == sig) return;  // nothing changed
+    if (it == disks_.end() && sig.empty()) return;                    // nothing to add
+    logLine("medium changed on disk " + std::to_string(number));
+    if (it != disks_.end()) removeDiskLocked(key);
+    if (src) addDiskLocked(std::move(src), key, false, std::move(parts));
 }
 
 int VolumeManager::attachImage(std::shared_ptr<DiskSource> image, std::string& error) {
@@ -90,7 +158,7 @@ int VolumeManager::attachImage(std::shared_ptr<DiskSource> image, std::string& e
         error = "image is already attached";
         return -1;
     }
-    addDiskLocked(image, key, true);
+    addDiskLocked(image, key, true, scanPartitions(*image));
     auto& disk = disks_[key];
     if (disk->volumeIds.empty()) {
         disks_.erase(key);
@@ -116,13 +184,14 @@ bool VolumeManager::detach(int volumeId, std::string& error) {
 }
 
 void VolumeManager::addDiskLocked(std::shared_ptr<DiskSource> src, const std::wstring& key,
-                                  bool isImage) {
+                                  bool isImage, std::vector<Partition> parts) {
     auto disk = std::make_unique<Disk>();
     disk->key = key;
     disk->src = src;
     disk->isImage = isImage;
+    disk->signature = signatureOf(parts);
 
-    for (auto& p : scanPartitions(*src)) {
+    for (auto& p : parts) {
         if (!p.ext.found) continue;
         auto v = std::make_unique<Volume>();
         v->id = nextVolumeId_++;

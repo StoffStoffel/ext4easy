@@ -1,0 +1,80 @@
+<!--
+  ext4win MSI package (WiX Toolset v5). Built by installer/build.ps1.
+  Variables: Version, BinDir (folder with ext4win.exe and ext4win-tray.exe).
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="ext4win"
+           Manufacturer="ext4win project"
+           Version="$(Version)"
+           UpgradeCode="608AD594-7F4E-4A1D-B002-77C164A9D15B"
+           Scope="perMachine"
+           Compressed="yes">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of ext4win is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="ext4win.ico" SourceFile="..\res\ext4win.ico" />
+    <Property Id="ARPPRODUCTICON" Value="ext4win.ico" />
+    <Property Id="ARPCOMMENTS" Value="Read Linux ext2/ext3/ext4 drives as drive letters" />
+
+    <!-- WinFsp must be installed (the setup bundle installs it first). -->
+    <Property Id="WINFSPDIR">
+      <RegistrySearch Root="HKLM" Key="SOFTWARE\WinFsp" Name="InstallDir" Type="raw" Bitness="always32" />
+    </Property>
+    <Launch Condition="Installed OR WINFSPDIR"
+            Message="ext4win needs WinFsp (https://winfsp.dev). Please use ext4win-setup.exe, which installs it automatically." />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="ext4win">
+
+        <Component Id="ServiceExe" Bitness="always64">
+          <File Id="ext4win.exe" Source="$(BinDir)\ext4win.exe" KeyPath="yes" />
+          <ServiceInstall Name="ext4win"
+                          DisplayName="ext4win - Linux drives"
+                          Description="Mounts Linux ext2/ext3/ext4 drives read-only as drive letters."
+                          Type="ownProcess"
+                          Start="auto"
+                          ErrorControl="normal"
+                          Account="LocalSystem"
+                          Arguments="service"
+                          Vital="yes" />
+          <!-- Restart-on-crash is configured by the service itself at startup. -->
+          <ServiceControl Id="ext4winControl" Name="ext4win" Start="install" Stop="both" Remove="uninstall" Wait="yes" />
+          <!-- "ext4win" on the command line -->
+          <Environment Id="PathEntry" Name="PATH" Value="[INSTALLFOLDER]" Part="last" Action="set" System="yes" />
+        </Component>
+
+        <Component Id="TrayExe" Bitness="always64">
+          <File Id="ext4win_tray.exe" Source="$(BinDir)\ext4win-tray.exe" KeyPath="yes" />
+          <RegistryValue Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Run"
+                         Name="ext4win" Type="string" Value="&quot;[#ext4win_tray.exe]&quot;" />
+        </Component>
+
+        <Component Id="License" Bitness="always64">
+          <File Id="LICENSE.txt" Source="..\LICENSE" Name="LICENSE.txt" KeyPath="yes" />
+        </Component>
+        <Component Id="Readme" Bitness="always64">
+          <File Id="README.md" Source="..\README.md" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <!-- Start menu entry (standard WiX pattern: HKCU key path keeps ICE38/43/57 happy) -->
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Component Id="StartMenuShortcut">
+        <Shortcut Id="TrayShortcut" Name="ext4win" Description="Linux drives (ext4)"
+                  Target="[INSTALLFOLDER]ext4win-tray.exe" WorkingDirectory="INSTALLFOLDER" Icon="ext4win.ico" />
+        <RegistryValue Root="HKCU" Key="Software\ext4win" Name="StartMenuShortcut"
+                       Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <Feature Id="Main">
+      <ComponentRef Id="ServiceExe" />
+      <ComponentRef Id="TrayExe" />
+      <ComponentRef Id="License" />
+      <ComponentRef Id="Readme" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+  </Package>
+</Wix>

@@ -31,6 +31,12 @@ public:
     void diskArrived(const std::wstring& devicePath);
     void diskRemoved(const std::wstring& devicePath);
 
+    // A volume appeared or vanished, e.g. because a memory card was swapped
+    // in a card reader. Re-reads the affected disk(s) if their ext
+    // partitions changed; untouched disks keep their mounts.
+    void volumeArrived(const std::wstring& volumePath);
+    void volumeRemoved();
+
     // Image file opened by the caller (as the requesting user). Its volumes
     // are mounted right away. Returns the number of ext volumes found.
     int attachImage(std::shared_ptr<DiskSource> image, std::string& error);
@@ -50,7 +56,9 @@ private:
     struct Volume;
     struct Disk;
 
-    void addDiskLocked(std::shared_ptr<DiskSource> src, const std::wstring& key, bool isImage);
+    void addDiskLocked(std::shared_ptr<DiskSource> src, const std::wstring& key, bool isImage,
+                       std::vector<Partition> parts);
+    void recheckDisk(int deviceNumber);
     void removeDiskLocked(const std::wstring& key);
     void applyPolicyLocked(Volume& v);
     bool mountLocked(Volume& v, wchar_t letter, std::string& error);
@@ -62,6 +70,7 @@ private:
     std::map<std::wstring, std::unique_ptr<Disk>> disks_;  // key: normalized path
     std::map<int, std::unique_ptr<Volume>> volumes_;
     std::map<int, EventSink> subscribers_;
+    std::map<int, std::wstring> interfaceByNumber_;  // PhysicalDriveN -> disk key
     int nextVolumeId_ = 1;
     int nextToken_ = 1;
 };

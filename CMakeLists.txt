@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(ext4win VERSION 0.1.0 LANGUAGES C CXX)
+project(ext4win VERSION 0.3.0 LANGUAGES C CXX RC)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
@@ -10,7 +10,8 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 add_compile_definitions(UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
 if(MSVC)
-    add_compile_options(/utf-8)  # source files are UTF-8 (umlauts in UI strings)
+    # source files are UTF-8 (umlauts in UI strings); not for the resource compiler
+    add_compile_options($<$<COMPILE_LANGUAGE:C,CXX>:/utf-8>)
 endif()
 
 # --- lwext4 (vendored, see third_party/lwext4/PATCHES.md) -------------------
@@ -45,6 +46,8 @@ if(MSVC)
     target_compile_options(ext4core PRIVATE /W4 /permissive-)
 endif()
 
+configure_file(res/version.h.in ${CMAKE_BINARY_DIR}/generated/version.h @ONLY)
+
 # --- WinFsp (required) ------------------------------------------------------
 set(_pf86 "ProgramFiles(x86)")
 set(WINFSP_DIR "$ENV{${_pf86}}/WinFsp" CACHE PATH "WinFsp install directory")
@@ -66,8 +69,9 @@ add_executable(ext4win
     src/service/pipe_server.cpp
     src/service/service_main.cpp
     src/service/settings.cpp
-    src/service/volume_manager.cpp)
-target_include_directories(ext4win PRIVATE "${WINFSP_DIR}/inc")
+    src/service/volume_manager.cpp
+    res/ext4win.rc)
+target_include_directories(ext4win PRIVATE "${WINFSP_DIR}/inc" ${CMAKE_BINARY_DIR}/generated)
 target_link_libraries(ext4win PRIVATE ext4core ext4ipc "${WINFSP_DIR}/lib/winfsp-x64.lib"
     delayimp cfgmgr32 shell32 advapi32)
 target_link_options(ext4win PRIVATE /DELAYLOAD:winfsp-x64.dll)
@@ -76,7 +80,9 @@ target_link_options(ext4win PRIVATE /DELAYLOAD:winfsp-x64.dll)
 add_executable(ext4win-tray WIN32
     src/tray/tray.cpp
     src/tray/strings.cpp
-    src/tray/tray.manifest)
+    src/tray/tray.manifest
+    res/tray.rc)
+target_include_directories(ext4win-tray PRIVATE ${CMAKE_BINARY_DIR}/generated)
 target_link_libraries(ext4win-tray PRIVATE ext4ipc comctl32 shell32 comdlg32 ole32)
 
 if(MSVC)

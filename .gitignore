@@ -1,2 +1,4 @@
 /build/
 *.img
+/out/
+/third_party/winfsp/*.msi
