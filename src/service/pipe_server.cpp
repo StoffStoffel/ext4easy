@@ -14,7 +14,7 @@
 #include <cstdlib>
 #include <deque>
 
-namespace ext4win {
+namespace ext4easy {
 
 namespace {
 
@@ -199,4 +199,4 @@ void PipeServer::subscribe(PipeStream& stream) {
     manager_.unsubscribe(token);
 }
 
-}  // namespace ext4win
+}  // namespace ext4easy

@@ -9,7 +9,7 @@
 #include <cstdio>
 #include <mutex>
 
-namespace ext4win {
+namespace ext4easy {
 
 namespace {
 std::mutex g_logMutex;
@@ -23,7 +23,7 @@ std::wstring dataDirectory() {
     if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_ProgramData, 0, nullptr, &base))) dir = base;
     CoTaskMemFree(base);
     if (dir.empty()) dir = L"C:\\ProgramData";
-    dir += L"\\ext4win";
+    dir += L"\\ext4easy";
     CreateDirectoryW(dir.c_str(), nullptr);
     return dir;
 }
@@ -56,4 +56,4 @@ void logLine(const std::string& text) {
 
 void logLine(const std::wstring& text) { logLine(wideToUtf8(text)); }
 
-}  // namespace ext4win
+}  // namespace ext4easy

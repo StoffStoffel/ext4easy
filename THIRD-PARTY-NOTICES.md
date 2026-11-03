@@ -1,6 +1,6 @@
 # Third-party notices
 
-ext4win is licensed under the GNU General Public License v3.0 or later (see `LICENSE`).
+ext4easy is licensed under the GNU General Public License v3.0 or later (see `LICENSE`).
 It contains or ships the following third-party software.
 
 ---
@@ -10,10 +10,10 @@ It contains or ships the following third-party software.
 **WinFsp - Windows File System Proxy, Copyright (C) Bill Zissimopoulos**
 <https://github.com/winfsp/winfsp>
 
-Used to provide the drive letters. ext4win links to `winfsp-x64.dll`, and the setup
-(`ext4win-setup-<version>.exe`) contains the unmodified WinFsp installer as released by
+Used to provide the drive letters. ext4easy links to `winfsp-x64.dll`, and the setup
+(`ext4easy-setup-<version>.exe`) contains the unmodified WinFsp installer as released by
 the WinFsp project. WinFsp is licensed under the GPLv3 with the following special
-exception for free/open source software, under which ext4win uses it:
+exception for free/open source software, under which ext4easy uses it:
 
 > As a special exception to GPLv3, Bill Zissimopoulos grants additional permissions to
 > Free/Libre and Open Source Software ("FLOSS") without requiring that such software is
@@ -125,7 +125,7 @@ Message-Digest Algorithm:
 
 ## WiX Toolset
 
-<https://wixtoolset.org> — the setup program (`ext4win-setup-<version>.exe`) is built with
+<https://wixtoolset.org> — the setup program (`ext4easy-setup-<version>.exe`) is built with
 the WiX Toolset and contains its bootstrapper engine and standard bootstrapper
 application, licensed under the Microsoft Reciprocal License (MS-RL),
 <https://opensource.org/license/ms-rl-html>. Their source code is available at

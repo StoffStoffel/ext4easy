@@ -8,7 +8,7 @@
 #include <string>
 #include <thread>
 
-namespace ext4win {
+namespace ext4easy {
 
 // Reports disks that are present at start and disks that are plugged in or
 // removed later, plus volume (partition) changes - those also happen when
@@ -39,4 +39,4 @@ private:
     bool stopping_ = false;
 };
 
-}  // namespace ext4win
+}  // namespace ext4easy

@@ -5,7 +5,7 @@
 
 #include <cstdlib>
 
-namespace ext4win {
+namespace ext4easy {
 
 std::vector<std::string> splitFields(const std::string& line) {
     std::vector<std::string> out;
@@ -138,4 +138,4 @@ bool pipeRequest(const std::vector<std::string>& request, std::vector<std::strin
     return false;
 }
 
-}  // namespace ext4win
+}  // namespace ext4easy

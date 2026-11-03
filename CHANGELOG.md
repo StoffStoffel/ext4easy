@@ -2,10 +2,15 @@
 
 ## 0.3.0 – 2026-11-03
 
-- Setup program `ext4win-setup-<version>.exe`: installs WinFsp (if needed) and ext4win to
-  `C:\Program Files\ext4win`, registers the service, tray autostart, start menu entry
+- The project was renamed from **ext4win** to **ext4easy**, because the name ext4win was
+  already taken. Program files, service name, settings folder
+  (`%ProgramData%\ext4easy`), registry entries and the `EXT4EASY_DEBUG` variable changed
+  accordingly. Settings of an earlier ext4win installation are not taken over;
+  uninstall ext4win before installing ext4easy.
+- Setup program `ext4easy-setup-<version>.exe`: installs WinFsp (if needed) and ext4easy to
+  `C:\Program Files\ext4easy`, registers the service, tray autostart, start menu entry
   and `PATH`. Uninstall via *Settings → Apps*; WinFsp is kept.
-- Separate `ext4win-<version>.msi` for PCs that already have WinFsp.
+- Separate `ext4easy-<version>.msi` for PCs that already have WinFsp.
 - Own app icon and version information.
 - Memory card swaps in card readers are detected.
 - The service restarts itself after a crash; the tray app closes and restarts cleanly

@@ -12,7 +12,7 @@
 #include <algorithm>
 #include <cwctype>
 
-namespace ext4win {
+namespace ext4easy {
 
 struct VolumeManager::Volume {
     int id = 0;
@@ -402,4 +402,4 @@ void VolumeManager::unmountAll() {
     disks_.clear();
 }
 
-}  // namespace ext4win
+}  // namespace ext4easy

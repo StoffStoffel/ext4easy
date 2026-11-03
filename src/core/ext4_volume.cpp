@@ -16,7 +16,7 @@
 #include <deque>
 #include <mutex>
 
-namespace ext4win {
+namespace ext4easy {
 
 namespace {
 
@@ -413,4 +413,4 @@ std::string ext4ErrorText(int err) {
     }
 }
 
-}  // namespace ext4win
+}  // namespace ext4easy

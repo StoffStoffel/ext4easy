@@ -6,7 +6,7 @@
 #include <cstdio>
 #include <cstring>
 
-namespace ext4win {
+namespace ext4easy {
 
 namespace {
 
@@ -232,4 +232,4 @@ std::vector<Partition> scanPartitions(DiskSource& disk) {
     return out;
 }
 
-}  // namespace ext4win
+}  // namespace ext4easy

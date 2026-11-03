@@ -8,7 +8,7 @@
 #include <cstring>
 #include <vector>
 
-namespace ext4win {
+namespace ext4easy {
 
 namespace {
 constexpr size_t kBounceSize = 1024 * 1024;  // max bytes per underlying read
@@ -172,4 +172,4 @@ bool DiskSource::read(uint64_t offset, void* buffer, size_t length) {
     return true;
 }
 
-}  // namespace ext4win
+}  // namespace ext4easy

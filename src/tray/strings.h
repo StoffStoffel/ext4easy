@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
-namespace ext4win {
+namespace ext4easy {
 
 enum class Str {
     TipMounted,        // %d = number of mounted volumes
@@ -36,4 +36,4 @@ enum class Str {
 // Text in the user's UI language (German or English).
 const wchar_t* tr(Str id);
 
-}  // namespace ext4win
+}  // namespace ext4easy

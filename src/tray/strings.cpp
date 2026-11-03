@@ -3,7 +3,7 @@
 
 #include <windows.h>
 
-namespace ext4win {
+namespace ext4easy {
 
 namespace {
 
@@ -14,8 +14,8 @@ struct Entry {
 };
 
 const Entry kStrings[] = {
-    {Str::TipMounted, L"ext4win - %d Linux drive(s) mounted", L"ext4win - %d Linux-Laufwerk(e) eingebunden"},
-    {Str::TipNoService, L"ext4win - service is not running", L"ext4win - Dienst läuft nicht"},
+    {Str::TipMounted, L"ext4easy - %d Linux drive(s) mounted", L"ext4easy - %d Linux-Laufwerk(e) eingebunden"},
+    {Str::TipNoService, L"ext4easy - service is not running", L"ext4easy - Dienst läuft nicht"},
     {Str::MenuNoVolumes, L"No Linux drives found", L"Keine Linux-Laufwerke gefunden"},
     {Str::MenuServiceDown, L"Service not reachable", L"Dienst nicht erreichbar"},
     {Str::MenuOpen, L"&Open", L"Ö&ffnen"},
@@ -61,4 +61,4 @@ const wchar_t* tr(Str id) {
     return L"?";
 }
 
-}  // namespace ext4win
+}  // namespace ext4easy

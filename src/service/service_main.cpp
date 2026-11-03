@@ -15,16 +15,16 @@
 #include <cstdio>
 #include <memory>
 
-namespace ext4win {
+namespace ext4easy {
 
 namespace {
 
-const wchar_t* kServiceName = L"ext4win";
-const wchar_t* kServiceDisplay = L"ext4win - Linux drives";
+const wchar_t* kServiceName = L"ext4easy";
+const wchar_t* kServiceDisplay = L"ext4easy - Linux drives";
 const wchar_t* kServiceDescription =
     L"Mounts Linux ext2/ext3/ext4 drives read-only as drive letters.";
 const wchar_t* kRunKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
-const wchar_t* kTrayExe = L"ext4win-tray.exe";
+const wchar_t* kTrayExe = L"ext4easy-tray.exe";
 
 SERVICE_STATUS_HANDLE g_statusHandle = nullptr;
 SERVICE_STATUS g_status{};
@@ -167,8 +167,8 @@ int runServiceDispatcher() {
     if (!StartServiceCtrlDispatcherW(table)) {
         if (GetLastError() == ERROR_FAILED_SERVICE_CONTROLLER_CONNECT)
             std::fprintf(stderr,
-                         "This command is started by Windows. Use 'ext4win install', or\n"
-                         "'ext4win service --console' to run it in this window.\n");
+                         "This command is started by Windows. Use 'ext4easy install', or\n"
+                         "'ext4easy service --console' to run it in this window.\n");
         return 1;
     }
     return 0;
@@ -230,7 +230,7 @@ int installService() {
     std::wstring tray = exeDirectory() + L"\\" + kTrayExe;
     if (GetFileAttributesW(tray.c_str()) != INVALID_FILE_ATTRIBUTES) {
         std::wstring value = L"\"" + tray + L"\"";
-        RegSetKeyValueW(HKEY_LOCAL_MACHINE, kRunKey, L"ext4win", REG_SZ, value.c_str(),
+        RegSetKeyValueW(HKEY_LOCAL_MACHINE, kRunKey, L"ext4easy", REG_SZ, value.c_str(),
                         static_cast<DWORD>((value.size() + 1) * sizeof(wchar_t)));
         // Start the tray app without administrator rights (via Explorer).
         ShellExecuteW(nullptr, L"open", L"explorer.exe", value.c_str(), nullptr, SW_SHOWNORMAL);
@@ -256,14 +256,14 @@ int uninstallService() {
     if (!ok) printError(L"cannot delete service");
     CloseServiceHandle(svc);
     CloseServiceHandle(scm);
-    RegDeleteKeyValueW(HKEY_LOCAL_MACHINE, kRunKey, L"ext4win");
+    RegDeleteKeyValueW(HKEY_LOCAL_MACHINE, kRunKey, L"ext4easy");
     if (ok) std::printf("Service removed. Close the tray app via its menu.\n");
     return ok ? 0 : 1;
 }
 
 int runCtl(const std::vector<std::wstring>& args) {
     if (args.empty()) {
-        std::fprintf(stderr, "usage: ext4win ctl LIST | MOUNT id [X] | UNMOUNT id | "
+        std::fprintf(stderr, "usage: ext4easy ctl LIST | MOUNT id [X] | UNMOUNT id | "
                              "POLICY id ask|always|never | ATTACH file | DETACH id | SUBSCRIBE\n");
         return 2;
     }
@@ -298,4 +298,4 @@ int runCtl(const std::vector<std::wstring>& args) {
     return !reply.empty() && reply.back().rfind("ERR", 0) == 0 ? 1 : 0;
 }
 
-}  // namespace ext4win
+}  // namespace ext4easy

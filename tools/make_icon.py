@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generates res/ext4win.ico (all sizes Windows uses). Needs Pillow.
+"""Generates res/ext4easy.ico (all sizes Windows uses). Needs Pillow.
 
     python tools/make_icon.py
 """
@@ -63,13 +63,13 @@ def draw(size: int) -> Image.Image:
 
 def main() -> None:
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    out = os.path.join(root, 'res', 'ext4win.ico')
+    out = os.path.join(root, 'res', 'ext4easy.ico')
     os.makedirs(os.path.dirname(out), exist_ok=True)
     images = [draw(sz) for sz in SIZES]
     images[-1].save(out, format='ICO', sizes=[(sz, sz) for sz in SIZES],
                     append_images=images[:-1])
-    images[-1].save(os.path.join(root, 'res', 'ext4win-256.png'))
-    draw(64).save(os.path.join(root, 'res', 'ext4win-64.png'))  # installer logo
+    images[-1].save(os.path.join(root, 'res', 'ext4easy-256.png'))
+    draw(64).save(os.path.join(root, 'res', 'ext4easy-64.png'))  # installer logo
     print('wrote', out)
 
 

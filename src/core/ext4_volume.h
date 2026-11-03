@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace ext4win {
+namespace ext4easy {
 
 class DiskSource;
 
@@ -80,4 +80,4 @@ private:
 // Text for an errno value returned by the functions above.
 std::string ext4ErrorText(int err);
 
-}  // namespace ext4win
+}  // namespace ext4easy

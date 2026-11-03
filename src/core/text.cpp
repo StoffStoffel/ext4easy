@@ -5,7 +5,7 @@
 
 #include <cstdio>
 
-namespace ext4win {
+namespace ext4easy {
 
 std::wstring utf8ToWide(std::string_view s) {
     if (s.empty()) return {};
@@ -41,4 +41,4 @@ std::string formatSize(unsigned long long bytes) {
     return buf;
 }
 
-}  // namespace ext4win
+}  // namespace ext4easy

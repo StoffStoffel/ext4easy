@@ -3,7 +3,7 @@
 
 #include <cstdint>
 
-namespace ext4win {
+namespace ext4easy {
 
 namespace {
 
@@ -130,4 +130,4 @@ std::string windowsPathToLinux(std::wstring_view path) {
     return out.empty() ? "/" : out;
 }
 
-}  // namespace ext4win
+}  // namespace ext4easy

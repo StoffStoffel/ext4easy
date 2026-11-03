@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-namespace ext4win {
+namespace ext4easy {
 
 class DiskSource;
 
@@ -38,4 +38,4 @@ ExtProbe probeExt(DiskSource& disk, uint64_t offset);
 // and probes each of them for ext2/3/4.
 std::vector<Partition> scanPartitions(DiskSource& disk);
 
-}  // namespace ext4win
+}  // namespace ext4easy

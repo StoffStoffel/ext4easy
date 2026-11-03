@@ -8,7 +8,7 @@
 #include <string>
 #include <thread>
 
-namespace ext4win {
+namespace ext4easy {
 
 class VolumeManager;
 
@@ -37,4 +37,4 @@ private:
     int activeThreads_ = 0;
 };
 
-}  // namespace ext4win
+}  // namespace ext4easy

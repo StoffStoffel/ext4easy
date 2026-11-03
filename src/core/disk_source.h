@@ -6,7 +6,7 @@
 #include <mutex>
 #include <string>
 
-namespace ext4win {
+namespace ext4easy {
 
 // Read-only access to an image file or a raw disk (\\.\PhysicalDriveN or a
 // device interface path like \\?\usbstor#disk...). read() accepts any
@@ -55,4 +55,4 @@ int queryDeviceNumber(const std::wstring& devicePath);
 // Win32 error code as readable text.
 std::wstring win32ErrorText(unsigned long code);
 
-}  // namespace ext4win
+}  // namespace ext4easy

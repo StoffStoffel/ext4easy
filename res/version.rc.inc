@@ -2,11 +2,11 @@
 #include <winver.h>
 #include "version.h"
 
-1 ICON "ext4win.ico"
+1 ICON "ext4easy.ico"
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION EXT4WIN_VER_MAJOR, EXT4WIN_VER_MINOR, EXT4WIN_VER_PATCH, 0
- PRODUCTVERSION EXT4WIN_VER_MAJOR, EXT4WIN_VER_MINOR, EXT4WIN_VER_PATCH, 0
+ FILEVERSION EXT4EASY_VER_MAJOR, EXT4EASY_VER_MINOR, EXT4EASY_VER_PATCH, 0
+ PRODUCTVERSION EXT4EASY_VER_MAJOR, EXT4EASY_VER_MINOR, EXT4EASY_VER_PATCH, 0
  FILEFLAGSMASK 0x3fL
  FILEFLAGS 0x0L
  FILEOS VOS_NT_WINDOWS32
@@ -17,14 +17,14 @@ BEGIN
     BEGIN
         BLOCK "040904b0"
         BEGIN
-            VALUE "CompanyName", "ext4win project"
+            VALUE "CompanyName", "ext4easy project"
             VALUE "FileDescription", FILE_DESC
-            VALUE "FileVersion", EXT4WIN_VER_STRING
+            VALUE "FileVersion", EXT4EASY_VER_STRING
             VALUE "InternalName", ORIG_NAME
             VALUE "LegalCopyright", "GPL-3.0-or-later"
             VALUE "OriginalFilename", ORIG_NAME
-            VALUE "ProductName", "ext4win"
-            VALUE "ProductVersion", EXT4WIN_VER_STRING
+            VALUE "ProductName", "ext4easy"
+            VALUE "ProductVersion", EXT4EASY_VER_STRING
         END
     END
     BLOCK "VarFileInfo"

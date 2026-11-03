@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// ext4win tray app: shows Linux drives known to the service, asks whether to
+// ext4easy tray app: shows Linux drives known to the service, asks whether to
 // mount newly connected ones, and offers open/unmount/policy per drive.
 
 #include "ipc/pipe.h"
@@ -20,7 +20,7 @@
 #include <thread>
 #include <vector>
 
-using namespace ext4win;
+using namespace ext4easy;
 
 namespace {
 
@@ -93,7 +93,7 @@ const VolumeRecord* findVolume(int id) {
 }
 
 void showError(const std::string& message) {
-    MessageBoxW(g_hwnd, widen(message).c_str(), L"ext4win", MB_OK | MB_ICONWARNING);
+    MessageBoxW(g_hwnd, widen(message).c_str(), L"ext4easy", MB_OK | MB_ICONWARNING);
 }
 
 bool request(const std::vector<std::string>& req, std::string* okValue = nullptr,
@@ -132,7 +132,7 @@ void updateTip() {
 }
 
 void addIcon() {
-    static HICON icon = nullptr;  // resource 1 = res/ext4win.ico, sized for the current DPI
+    static HICON icon = nullptr;  // resource 1 = res/ext4easy.ico, sized for the current DPI
     if (!icon) LoadIconMetric(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(1), LIM_SMALL, &icon);
     g_nid.cbSize = sizeof g_nid;
     g_nid.hWnd = g_hwnd;
@@ -150,7 +150,7 @@ void balloon(const std::wstring& text, const std::wstring& target, bool warning 
     g_balloonTarget = target;
     g_nid.uFlags = NIF_INFO;
     wcsncpy_s(g_nid.szInfo, text.c_str(), _TRUNCATE);
-    wcscpy_s(g_nid.szInfoTitle, L"ext4win");
+    wcscpy_s(g_nid.szInfoTitle, L"ext4easy");
     g_nid.dwInfoFlags = warning ? NIIF_WARNING : NIIF_INFO;
     Shell_NotifyIconW(NIM_MODIFY, &g_nid);
 }
@@ -404,7 +404,7 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 }  // namespace
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
-    HANDLE single = CreateMutexW(nullptr, TRUE, L"Local\\ext4win-tray");
+    HANDLE single = CreateMutexW(nullptr, TRUE, L"Local\\ext4easy-tray");
     if (GetLastError() == ERROR_ALREADY_EXISTS) return 0;  // already running
 
     INITCOMMONCONTROLSEX icc{sizeof icc, ICC_STANDARD_CLASSES};
@@ -415,9 +415,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     wc.lpfnWndProc = wndProc;
     wc.hInstance = instance;
     wc.hIcon = LoadIconW(instance, MAKEINTRESOURCEW(1));
-    wc.lpszClassName = L"ext4win-tray";
+    wc.lpszClassName = L"ext4easy-tray";
     RegisterClassExW(&wc);
-    g_hwnd = CreateWindowExW(0, wc.lpszClassName, L"ext4win", 0, 0, 0, 0, 0, nullptr, nullptr,
+    g_hwnd = CreateWindowExW(0, wc.lpszClassName, L"ext4easy", 0, 0, 0, 0, 0, nullptr, nullptr,
                              instance, nullptr);
     addIcon();
     // Let Windows restart the tray app after an update closed it.

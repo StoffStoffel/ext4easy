@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// ext4win - command line tool.
-//   ext4win list [source]              show disks/partitions with ext2/3/4
-//   ext4win ls <source> [path]         list a directory
-//   ext4win cat <source> <path>        write a file to stdout
-//   ext4win stat <source> <path>       show file details
-//   ext4win mount <source> [X:]        mount as drive letter
-//   ext4win install | uninstall        background service + tray autostart
-//   ext4win service [--console]        the background service itself
-//   ext4win ctl <request...>           talk to the running service
+// ext4easy - command line tool.
+//   ext4easy list [source]              show disks/partitions with ext2/3/4
+//   ext4easy ls <source> [path]         list a directory
+//   ext4easy cat <source> <path>        write a file to stdout
+//   ext4easy stat <source> <path>       show file details
+//   ext4easy mount <source> [X:]        mount as drive letter
+//   ext4easy install | uninstall        background service + tray autostart
+//   ext4easy service [--console]        the background service itself
+//   ext4easy ctl <request...>           talk to the running service
 //
 // <source> is an image file or \\.\PhysicalDriveN, optionally followed by
 // @N to choose partition N (default: first ext partition).
@@ -30,24 +30,24 @@
 #include "mount/winfsp_fs.h"
 #include "service/service_main.h"
 
-using namespace ext4win;
+using namespace ext4easy;
 
 namespace {
 
 void printUsage() {
     std::printf(
-        "ext4win - read ext2/3/4 filesystems on Windows\n\n"
+        "ext4easy - read ext2/3/4 filesystems on Windows\n\n"
         "Usage:\n"
-        "  ext4win list [source]          show disks/partitions with ext2/3/4\n"
-        "  ext4win ls   <source> [path]   list a directory\n"
-        "  ext4win cat  <source> <path>   write a file to stdout\n"
-        "  ext4win stat <source> <path>   show file details\n"
-        "  ext4win mount <source> [X:]    mount read-only as a drive letter\n"
+        "  ext4easy list [source]          show disks/partitions with ext2/3/4\n"
+        "  ext4easy ls   <source> [path]   list a directory\n"
+        "  ext4easy cat  <source> <path>   write a file to stdout\n"
+        "  ext4easy stat <source> <path>   show file details\n"
+        "  ext4easy mount <source> [X:]    mount read-only as a drive letter\n"
         "\n"
-        "  ext4win install                install background service + tray app (admin)\n"
-        "  ext4win uninstall              remove them again (admin)\n"
-        "  ext4win service --console      run the service in this window (testing)\n"
-        "  ext4win ctl LIST|MOUNT id|...  send a request to the running service\n"
+        "  ext4easy install                install background service + tray app (admin)\n"
+        "  ext4easy uninstall              remove them again (admin)\n"
+        "  ext4easy service --console      run the service in this window (testing)\n"
+        "  ext4easy ctl LIST|MOUNT id|...  send a request to the running service\n"
         "\n<source> is an image file or \\\\.\\PhysicalDriveN, optionally with @N\n"
         "to choose partition N (default: first ext partition).\n"
         "Raw disk access needs administrator rights.\n");

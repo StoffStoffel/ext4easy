@@ -1,3 +1,0 @@
-#define FILE_DESC "ext4win - Linux drives (command line and service)"
-#define ORIG_NAME "ext4win.exe"
-#include "version.rc.inc"

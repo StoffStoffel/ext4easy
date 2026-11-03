@@ -4,7 +4,7 @@
 #include <string>
 #include <string_view>
 
-namespace ext4win {
+namespace ext4easy {
 
 // Linux file names are arbitrary bytes (usually UTF-8); Windows names are
 // UTF-16 and forbid some characters. The mapping is reversible:
@@ -18,4 +18,4 @@ std::string windowsNameToLinux(std::wstring_view name);
 // "\dir\file" (WinFsp style) -> "/dir/file" with each component mapped.
 std::string windowsPathToLinux(std::wstring_view path);
 
-}  // namespace ext4win
+}  // namespace ext4easy

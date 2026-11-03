@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Communication between the service and its clients (tray app, "ext4win ctl")
+// Communication between the service and its clients (tray app, "ext4easy ctl")
 // over a local named pipe. Plain UTF-8 lines, fields separated by TAB.
 //
 // Requests and replies:
@@ -21,9 +21,9 @@
 #include <string>
 #include <vector>
 
-namespace ext4win {
+namespace ext4easy {
 
-inline constexpr const wchar_t* kPipeName = L"\\\\.\\pipe\\ext4win";
+inline constexpr const wchar_t* kPipeName = L"\\\\.\\pipe\\ext4easy";
 
 std::vector<std::string> splitFields(const std::string& line);
 std::string joinFields(const std::vector<std::string>& fields);  // TABs/newlines in fields become spaces
@@ -72,4 +72,4 @@ private:
 bool pipeRequest(const std::vector<std::string>& request, std::vector<std::string>& replyLines,
                  std::string& error);
 
-}  // namespace ext4win
+}  // namespace ext4easy

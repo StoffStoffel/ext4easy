@@ -4,7 +4,7 @@
 #include <memory>
 #include <string>
 
-namespace ext4win {
+namespace ext4easy {
 
 class Ext4Volume;
 
@@ -33,4 +33,4 @@ private:
 // Mounts and blocks until Ctrl+C. Returns a process exit code.
 int runMountUntilCtrlC(std::unique_ptr<Ext4Volume> volume, const std::wstring& mountPoint);
 
-}  // namespace ext4win
+}  // namespace ext4easy

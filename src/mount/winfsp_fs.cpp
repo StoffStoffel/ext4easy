@@ -20,7 +20,7 @@
 #include <string>
 #include <vector>
 
-namespace ext4win {
+namespace ext4easy {
 
 namespace {
 
@@ -322,8 +322,8 @@ std::unique_ptr<WinFspMount> WinFspMount::start(std::unique_ptr<Ext4Volume> volu
     }
     s->fs->UserContext = s.get();
 
-    // EXT4WIN_DEBUG=1 logs every file system request to stderr.
-    if (GetEnvironmentVariableW(L"EXT4WIN_DEBUG", nullptr, 0) > 0) {
+    // EXT4EASY_DEBUG=1 logs every file system request to stderr.
+    if (GetEnvironmentVariableW(L"EXT4EASY_DEBUG", nullptr, 0) > 0) {
         FspDebugLogSetHandle(GetStdHandle(STD_ERROR_HANDLE));
         FspFileSystemSetDebugLog(s->fs, static_cast<UINT32>(-1));
     }
@@ -372,4 +372,4 @@ int runMountUntilCtrlC(std::unique_ptr<Ext4Volume> volume, const std::wstring& m
     return 0;
 }
 
-}  // namespace ext4win
+}  // namespace ext4easy

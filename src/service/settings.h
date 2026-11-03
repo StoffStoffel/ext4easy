@@ -4,7 +4,7 @@
 #include <map>
 #include <string>
 
-namespace ext4win {
+namespace ext4easy {
 
 enum class Policy { Ask, Always, Never };
 
@@ -12,7 +12,7 @@ const char* policyName(Policy p);
 bool parsePolicy(const std::string& s, Policy& out);
 
 // Per-filesystem settings, keyed by ext4 UUID. Stored as text in
-// %ProgramData%\ext4win\volumes.conf ("uuid policy letter" per line).
+// %ProgramData%\ext4easy\volumes.conf ("uuid policy letter" per line).
 // Not thread-safe; the VolumeManager serializes access.
 class Settings {
 public:
@@ -31,4 +31,4 @@ private:
     std::map<std::string, Entry> entries_;
 };
 
-}  // namespace ext4win
+}  // namespace ext4easy

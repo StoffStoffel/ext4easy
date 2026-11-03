@@ -10,7 +10,7 @@
 
 #include <vector>
 
-namespace ext4win {
+namespace ext4easy {
 
 namespace {
 
@@ -116,4 +116,4 @@ void DeviceWatcher::run() {
     }
 }
 
-}  // namespace ext4win
+}  // namespace ext4easy

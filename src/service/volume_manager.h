@@ -12,7 +12,7 @@
 #include <string>
 #include <vector>
 
-namespace ext4win {
+namespace ext4easy {
 
 class DiskSource;
 class WinFspMount;
@@ -75,4 +75,4 @@ private:
     int nextToken_ = 1;
 };
 
-}  // namespace ext4win
+}  // namespace ext4easy

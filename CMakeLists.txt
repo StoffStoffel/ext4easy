@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(ext4win VERSION 0.3.0 LANGUAGES C CXX RC)
+project(ext4easy VERSION 0.3.0 LANGUAGES C CXX RC)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
@@ -60,8 +60,8 @@ endif()
 add_library(ext4ipc STATIC src/ipc/pipe.cpp)
 target_include_directories(ext4ipc PUBLIC ${CMAKE_SOURCE_DIR}/src)
 
-# --- ext4win.exe: CLI, mount, background service ---------------------------
-add_executable(ext4win
+# --- ext4easy.exe: CLI, mount, background service ---------------------------
+add_executable(ext4easy
     src/cli/main.cpp
     src/mount/winfsp_fs.cpp
     src/service/device_watcher.cpp
@@ -70,23 +70,23 @@ add_executable(ext4win
     src/service/service_main.cpp
     src/service/settings.cpp
     src/service/volume_manager.cpp
-    res/ext4win.rc)
-target_include_directories(ext4win PRIVATE "${WINFSP_DIR}/inc" ${CMAKE_BINARY_DIR}/generated)
-target_link_libraries(ext4win PRIVATE ext4core ext4ipc "${WINFSP_DIR}/lib/winfsp-x64.lib"
+    res/ext4easy.rc)
+target_include_directories(ext4easy PRIVATE "${WINFSP_DIR}/inc" ${CMAKE_BINARY_DIR}/generated)
+target_link_libraries(ext4easy PRIVATE ext4core ext4ipc "${WINFSP_DIR}/lib/winfsp-x64.lib"
     delayimp cfgmgr32 shell32 advapi32)
-target_link_options(ext4win PRIVATE /DELAYLOAD:winfsp-x64.dll)
+target_link_options(ext4easy PRIVATE /DELAYLOAD:winfsp-x64.dll)
 
-# --- ext4win-tray.exe ----------------------------------------------------------
-add_executable(ext4win-tray WIN32
+# --- ext4easy-tray.exe ----------------------------------------------------------
+add_executable(ext4easy-tray WIN32
     src/tray/tray.cpp
     src/tray/strings.cpp
     src/tray/tray.manifest
     res/tray.rc)
-target_include_directories(ext4win-tray PRIVATE ${CMAKE_BINARY_DIR}/generated)
-target_link_libraries(ext4win-tray PRIVATE ext4ipc comctl32 shell32 comdlg32 ole32)
+target_include_directories(ext4easy-tray PRIVATE ${CMAKE_BINARY_DIR}/generated)
+target_link_libraries(ext4easy-tray PRIVATE ext4ipc comctl32 shell32 comdlg32 ole32)
 
 if(MSVC)
-    target_compile_options(ext4win PRIVATE /W4 /permissive-)
-    target_compile_options(ext4win-tray PRIVATE /W4 /permissive-)
+    target_compile_options(ext4easy PRIVATE /W4 /permissive-)
+    target_compile_options(ext4easy-tray PRIVATE /W4 /permissive-)
     target_compile_options(ext4ipc PRIVATE /W4 /permissive-)
 endif()

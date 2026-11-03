@@ -1,3 +1,3 @@
-#define FILE_DESC "ext4win - Linux drives (tray app)"
-#define ORIG_NAME "ext4win-tray.exe"
+#define FILE_DESC "ext4easy - Linux drives (tray app)"
+#define ORIG_NAME "ext4easy-tray.exe"
 #include "version.rc.inc"

@@ -8,7 +8,7 @@
 #include <fstream>
 #include <sstream>
 
-namespace ext4win {
+namespace ext4easy {
 
 namespace {
 std::wstring settingsPath() { return dataDirectory() + L"\\volumes.conf"; }
@@ -49,7 +49,7 @@ void Settings::load() {
 
 void Settings::save() const {
     std::ofstream out(settingsPath(), std::ios::trunc);
-    out << "# ext4win volume settings: uuid policy(ask|always|never) drive-letter(- = none)\n";
+    out << "# ext4easy volume settings: uuid policy(ask|always|never) drive-letter(- = none)\n";
     for (const auto& [uuid, e] : entries_)
         out << uuid << ' ' << policyName(e.policy) << ' '
             << (e.letter ? static_cast<char>(e.letter) : '-') << '\n';
@@ -78,4 +78,4 @@ void Settings::setPreferredLetter(const std::string& uuid, wchar_t letter) {
     save();
 }
 
-}  // namespace ext4win
+}  // namespace ext4easy
