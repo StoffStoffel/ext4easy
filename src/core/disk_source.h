@@ -8,18 +8,22 @@
 
 namespace ext4win {
 
-// Read-only access to an image file or a raw disk (\\.\PhysicalDriveN or a
-// device interface path like \\?\usbstor#disk...). read() accepts any
+// Access to an image file or a raw disk (\\.\PhysicalDriveN or a device
+// interface path like \\?\usbstor#disk...). read()/write() accept any
 // offset/length; sector alignment is handled internally. Thread-safe.
 class DiskSource {
 public:
-    static std::shared_ptr<DiskSource> open(const std::wstring& path, std::wstring& error);
+    static std::shared_ptr<DiskSource> open(const std::wstring& path, std::wstring& error,
+                                            bool writable = false);
     ~DiskSource();
 
     DiskSource(const DiskSource&) = delete;
     DiskSource& operator=(const DiskSource&) = delete;
 
     bool read(uint64_t offset, void* buffer, size_t length);
+    bool write(uint64_t offset, const void* data, size_t length);  // writable sources only
+    bool flush();
+    bool isWritable() const { return writable_; }
 
     uint64_t size() const { return size_; }
     uint32_t sectorSize() const { return sectorSize_; }
@@ -33,12 +37,16 @@ public:
 private:
     DiskSource() = default;
     void queryDescription();
+    // Sector-aligned I/O through the bounce buffer; caller holds mutex_.
+    bool readAligned(uint64_t offset, uint8_t* buf, size_t len);
+    bool writeAligned(uint64_t offset, const uint8_t* buf, size_t len);
 
     void* handle_ = nullptr;  // HANDLE
     uint64_t size_ = 0;
     uint32_t sectorSize_ = 512;
     bool physical_ = false;
     bool removable_ = false;
+    bool writable_ = false;
     int deviceNumber_ = -1;
     std::wstring path_;
     std::wstring description_;

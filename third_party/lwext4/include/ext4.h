@@ -330,6 +330,16 @@ int ext4_fopen2(ext4_file *file, const char *path, int flags);
 int ext4_fclose(ext4_file *file);
 
 
+/**@brief   Grow a file to size (lwext4-win addition). The new range is a
+ *          hole that reads as zeros; extent-mapped files only (ENOTSUP
+ *          otherwise).
+ *
+ * @param   file File handle.
+ * @param   size New size, larger than the current one.
+ *
+ * @return  Standard error code.*/
+int ext4_fextend(ext4_file *file, uint64_t size);
+
 /**@brief   File truncate function.
  *
  * @param   file File handle.
@@ -420,6 +430,28 @@ int ext4_raw_inode_get(const char *mount_point, uint32_t ino,
  *
  * @return  Standard error code.*/
 int ext4_inode_exist(const char *path, int type);
+
+#define EXT4_TIME_ATIME 1
+#define EXT4_TIME_MTIME 2
+#define EXT4_TIME_CTIME 4
+#define EXT4_TIME_CRTIME 8
+
+/**@brief   Timestamps for @ref ext4_times_set. Index 0..3 = atime, mtime,
+ *          ctime, crtime; mask selects which ones are written.*/
+struct ext4_times {
+	int64_t sec[4];
+	uint32_t nsec[4];
+	uint32_t mask;
+};
+
+/**@brief   Set timestamps with nanoseconds and creation time
+ *          (lwext4-win addition).
+ *
+ * @param   path Path to file/dir/link.
+ * @param   t    Times to set.
+ *
+ * @return  Standard error code.*/
+int ext4_times_set(const char *path, const struct ext4_times *t);
 
 /**@brief Change file/directory/link mode bits.
  *

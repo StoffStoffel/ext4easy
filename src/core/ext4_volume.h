@@ -44,13 +44,27 @@ struct VolumeInfo {
     bool needsRecovery = false;
 };
 
-struct FileHandle;  // opaque handle for reading file contents
+struct FileHandle;  // opaque handle for file contents
+
+// Ownership and permissions given to newly created files and directories.
+struct CreateOptions {
+    uint32_t fileMode = 0644;
+    uint32_t dirMode = 0755;
+    bool inheritOwner = true;  // uid/gid of the parent directory
+    uint32_t uid = 0, gid = 0;  // used when inheritOwner is false
+};
 
 class Ext4Volume {
 public:
-    // Mounts the filesystem at [offset, offset+size) of the disk, read-only.
+    // Mounts the filesystem at [offset, offset+size) of the disk. Writable
+    // mounts are refused (with a reason in error) for ext2/ext3 without
+    // extents, unreplayed journals and features lwext4 cannot maintain.
     static std::unique_ptr<Ext4Volume> mount(std::shared_ptr<DiskSource> disk, uint64_t offset,
-                                             uint64_t size, std::string& error);
+                                             uint64_t size, std::string& error,
+                                             bool writable = false);
+
+    // Why a writable mount would be refused ("" = it would be allowed).
+    static std::string writeBlocker(uint32_t compat, uint32_t incompat, uint32_t roCompat);
     ~Ext4Volume();
 
     Ext4Volume(const Ext4Volume&) = delete;
@@ -66,9 +80,29 @@ public:
     int listDir(const std::string& path, std::vector<DirEntry>& out);
     int readLink(const std::string& path, std::string& target);
 
-    FileHandle* openFile(const std::string& path, int& error);
+    FileHandle* openFile(const std::string& path, int& error, bool forWrite = false);
     int readFile(FileHandle* f, uint64_t offset, void* buffer, size_t length, size_t& bytesRead);
+    uint64_t fileSize(FileHandle* f);
     void closeFile(FileHandle* f);
+
+    // --- writing (all return EROFS on a read-only mount) ---
+    // Creates a new empty file (EEXIST if the name exists) and opens it.
+    FileHandle* createFile(const std::string& path, int& error);
+    // Writes at any offset; writing past the end grows the file (gap = zeros).
+    int writeFile(FileHandle* f, uint64_t offset, const void* data, size_t length,
+                  size_t& written);
+    int setFileSize(FileHandle* f, uint64_t size);
+    int mkdir(const std::string& path);
+    int removeFile(const std::string& path);  // files, symlinks, special files
+    int removeDir(const std::string& path);   // ENOTEMPTY unless empty
+    // Renames a file or directory. With replace, an existing target file
+    // (or empty directory, if the source is a directory) is removed first.
+    int rename(const std::string& from, const std::string& to, bool replace);
+    // FILETIME values; 0 = leave unchanged.
+    int setTimes(const std::string& path, uint64_t atime, uint64_t mtime, uint64_t ctime,
+                 uint64_t crtime);
+    int flush();
+    void setCreateOptions(const CreateOptions& o);
 
     struct Impl;
 

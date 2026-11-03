@@ -90,3 +90,12 @@ if(MSVC)
     target_compile_options(ext4win-tray PRIVATE /W4 /permissive-)
     target_compile_options(ext4ipc PRIVATE /W4 /permissive-)
 endif()
+
+# --- tests ----------------------------------------------------------------------
+add_executable(ext4stress tests/stress.cpp)
+target_link_libraries(ext4stress PRIVATE ext4core bcrypt)
+if(MSVC)
+    target_compile_options(ext4stress PRIVATE /W4 /permissive-)
+endif()
+add_executable(ext4scenario tests/scenario.cpp)
+target_link_libraries(ext4scenario PRIVATE ext4core)

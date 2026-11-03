@@ -377,7 +377,8 @@ int ext4_dir_dx_init(struct ext4_inode_ref *dir, struct ext4_inode_ref *parent)
 	struct ext4_dir_idx_root *root = (void *)block.data;
 	struct ext4_dir_idx_rinfo *info = &(root->info);
 
-	memset(root, 0, sizeof(struct ext4_dir_idx_root));
+	/* lwext4-win: clear the whole (unread) block, not just the header */
+	memset(block.data, 0, block_size);
 	struct ext4_dir_en *de;
 
 	/* Initialize dot entries */
@@ -433,6 +434,12 @@ int ext4_dir_dx_init(struct ext4_inode_ref *dir, struct ext4_inode_ref *parent)
 	/* Fill the whole block with empty entry */
 	struct ext4_dir_en *be = (void *)new_block.data;
 
+	/* lwext4-win: the block was not read, so clear it first, and compute
+	 * the checksum only after the entry is complete (the inode field used
+	 * to be set after the checksum, leaving stale data in it). */
+	memset(new_block.data, 0, block_size);
+	ext4_dir_en_set_inode(be, 0);
+
 	if (ext4_sb_feature_ro_com(sb, EXT4_FRO_COM_METADATA_CSUM)) {
 		uint16_t len = block_size - sizeof(struct ext4_dir_entry_tail);
 		ext4_dir_en_set_entry_len(be, len);
@@ -443,8 +450,6 @@ int ext4_dir_dx_init(struct ext4_inode_ref *dir, struct ext4_inode_ref *parent)
 	} else {
 		ext4_dir_en_set_entry_len(be, block_size);
 	}
-
-	ext4_dir_en_set_inode(be, 0);
 
 	ext4_trans_set_block_dirty(new_block.buf);
 	rc = ext4_block_set(dir->fs->bdev, &new_block);
@@ -997,6 +1002,21 @@ static int ext4_dir_dx_split_data(struct ext4_inode_ref *inode_ref,
 		}
 
 		current_size += sort[i].rec_len;
+	}
+
+	/* lwext4-win: if less than half of the block is in use (the insert
+	 * failed only because the free space is fragmented), no split point
+	 * was found and sort[mid - 1] read before the array. Split by count
+	 * instead; rewriting both blocks also compacts them. */
+	if (mid == 0) {
+		if (idx < 2) {
+			ext4_free(sort);
+			ext4_free(entry_buffer);
+			ext4_block_set(inode_ref->fs->bdev, &new_data_block_tmp);
+			return EIO;
+		}
+		mid = idx / 2;
+		new_hash = sort[mid].hash;
 	}
 
 	/* Check hash collision */
