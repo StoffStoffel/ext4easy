@@ -23,7 +23,9 @@ For testing without installing: `ext4easy service --console` runs the service in
 
 ### Write access
 
-Off by default. Switch it on per drive in the tray menu (*Allow write access*); the setting is remembered for that filesystem, and a mounted drive is mounted again with write access on the same letter.
+> **Safety and disclaimer:** Write access is new and off by default. Always choose *Unmount* in the tray menu before unplugging a drive, and back up important data before writing to it. ext4easy is provided without any warranty (see the GPL-3.0, sections 15 and 16).
+
+Switch it on per drive in the tray menu (*Allow write access*); the setting is remembered for that filesystem, and a mounted drive is mounted again with write access on the same letter.
 
 - Only **ext4 with extents** can be written. ext2/ext3, filesystems with an unreplayed journal (not cleanly removed from Linux) and features that cannot be kept consistent (e.g. `bigalloc`, `quota`, `verity`, `mmp`, `fast_commit`) stay read-only; the tray menu shows why.
 - Changes go through the ext4 journal. Data reaches the disk within about 2 seconds, and at the latest when a file is closed or flushed. **Before unplugging, choose *Unmount* in the tray menu** — then everything is written and the drive can be removed.

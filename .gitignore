@@ -2,3 +2,7 @@
 *.img
 /out/
 /third_party/winfsp/*.msi
+.vs/
+*.log
+CMakeUserPresets.json
+.claude/settings.local.json

@@ -1,11 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 – 2026-11-04
 
-- **Write support for ext4** (with extents), off by default:
+- **Write support for ext4** (with extents), off by default. Write support is new –
+  back up important data before using it.
   - Tray menu *Allow write access* per drive (remembered per filesystem); a mounted
     drive is mounted again with write access. The menu shows read-only/read-write and
-    why a drive can only be read (ext2/ext3, unreplayed journal, unsupported features).
+    why a drive can only be read (ext2/ext3, unreplayed journal, unsupported features);
+    the reason is also written to the service log.
   - Command line: `ext4easy mount <source> [X:] --write`, `ext4easy ctl WRITE id on|off`;
     `list` marks read-only filesystems.
   - In Explorer: create, change, rename/move and delete files and folders, set
@@ -15,6 +17,12 @@
 - Write core and test suite (scenarios, random stress against a model, disk full, crash
   tests, writing through a drive letter), all checked with Linux `e2fsck`; fixes in
   lwext4 listed in `third_party/lwext4/PATCHES.md`.
+- Settings from 0.3.0 are kept; all drives start read-only.
+- Known limitations:
+  - No cache flush barriers inside journal commits yet: a power loss while writing
+    may require `e2fsck` afterwards.
+  - ext4easy does not replay a journal itself yet. After a drive was not cleanly
+    unmounted on Linux, mount it there once (or run `e2fsck`) to enable write access.
 
 ## 0.3.0 – 2026-11-03
 
