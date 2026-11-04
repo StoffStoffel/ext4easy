@@ -264,7 +264,8 @@ int uninstallService() {
 int runCtl(const std::vector<std::wstring>& args) {
     if (args.empty()) {
         std::fprintf(stderr, "usage: ext4easy ctl LIST | MOUNT id [X] | UNMOUNT id | "
-                             "POLICY id ask|always|never | ATTACH file | DETACH id | SUBSCRIBE\n");
+                             "POLICY id ask|always|never | WRITE id on|off | ATTACH file | "
+                             "DETACH id | SUBSCRIBE\n");
         return 2;
     }
     std::vector<std::string> request;

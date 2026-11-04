@@ -8,6 +8,8 @@
 //   MOUNT id [letter]         -> OK mountpoint | ERR message
 //   UNMOUNT id                -> OK | ERR message
 //   POLICY id ask|always|never-> OK | ERR message   (remembered per filesystem UUID)
+//   WRITE id on|off           -> OK | ERR message   (allow write access; remembered per
+//                                UUID, a mounted volume is mounted again)
 //   ATTACH imagepath          -> OK count | ERR message   (opened as the calling user)
 //   DETACH id                 -> OK | ERR message   (image files only)
 //   SUBSCRIBE                 -> OK, then events until the connection closes:
@@ -43,6 +45,9 @@ struct VolumeRecord {
     bool isImage = false;
     bool removable = false;
     std::string message;     // error / warning text
+    bool writable = false;   // mounted with write access
+    bool allowWrite = false; // write access is wanted (setting)
+    std::string writeBlocker;  // why the filesystem can only be read ("" = writable)
 
     std::vector<std::string> toFields() const;  // including the leading "VOL"
     static bool fromFields(const std::vector<std::string>& f, VolumeRecord& out);

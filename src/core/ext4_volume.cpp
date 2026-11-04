@@ -590,6 +590,14 @@ uint64_t Ext4Volume::fileSize(FileHandle* f) {
     return f->file.fsize;
 }
 
+int Ext4Volume::statHandle(FileHandle* f, FileStat& st) {
+    std::lock_guard<std::recursive_mutex> lock(g_lock);
+    ext4_inode in{};
+    int r = ext4_raw_inode_get(impl_->mountPoint.c_str(), f->file.inode, &in);
+    if (r == EOK) impl_->fillStat(f->file.inode, in, st);
+    return r;
+}
+
 void Ext4Volume::closeFile(FileHandle* f) {
     if (!f) return;
     std::lock_guard<std::recursive_mutex> lock(g_lock);

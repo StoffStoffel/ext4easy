@@ -83,6 +83,7 @@ public:
     FileHandle* openFile(const std::string& path, int& error, bool forWrite = false);
     int readFile(FileHandle* f, uint64_t offset, void* buffer, size_t length, size_t& bytesRead);
     uint64_t fileSize(FileHandle* f);
+    int statHandle(FileHandle* f, FileStat& st);  // current inode data of an open file
     void closeFile(FileHandle* f);
 
     // --- writing (all return EROFS on a read-only mount) ---

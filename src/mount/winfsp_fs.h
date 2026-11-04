@@ -22,6 +22,7 @@ public:
     WinFspMount& operator=(const WinFspMount&) = delete;
 
     std::wstring mountPoint() const;
+    bool writable() const;
 
     struct State;
 

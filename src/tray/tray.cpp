@@ -34,7 +34,7 @@ constexpr UINT CMD_ATTACH = 100;
 constexpr UINT CMD_EXIT = 101;
 constexpr UINT CMD_ABOUT = 102;
 constexpr UINT CMD_VOLUME_BASE = 1000;  // + id * 16 + action
-enum Action { ActOpen, ActMount, ActUnmount, ActAsk, ActAlways, ActNever, ActDetach };
+enum Action { ActOpen, ActMount, ActUnmount, ActAsk, ActAlways, ActNever, ActDetach, ActWrite };
 
 HWND g_hwnd = nullptr;
 UINT g_taskbarCreated = 0;
@@ -182,8 +182,10 @@ void showNextAsk() {
         VolumeRecord v = *found;  // the list may change while the dialog is open
 
         std::wstring main = format(Str::AskMain, volumeName(v).c_str());
+        bool write = v.allowWrite && v.writeBlocker.empty();
         std::wstring content = format(Str::AskContent, sizeText(v.size).c_str(),
-                                      widen(v.disk).c_str(), v.partition);
+                                      widen(v.disk).c_str(), v.partition,
+                                      tr(write ? Str::AskWritable : Str::AskReadOnly));
         if (!v.message.empty()) content += L"\n\n" + widen(v.message);
 
         TASKDIALOG_BUTTON buttons[] = {{IDOK, tr(Str::AskMount)}, {IDCANCEL, tr(Str::AskSkip)}};
@@ -231,7 +233,9 @@ void handleEvent(const std::string& line) {
         refreshVolumes();
         const VolumeRecord* v = findVolume(std::atoi(f[2].c_str()));
         std::wstring name = v ? volumeName(*v) : tr(Str::UnnamedVolume);
-        balloon(format(Str::BalloonMounted, name.c_str(), widen(f[3]).c_str()), widen(f[3]));
+        const wchar_t* access = tr(v && v->writable ? Str::AccessWritable : Str::AccessReadOnly);
+        balloon(format(Str::BalloonMounted, name.c_str(), widen(f[3]).c_str(), access),
+                widen(f[3]));
     }
 }
 
@@ -262,7 +266,9 @@ void showMenu() {
     }
     for (const auto& v : g_volumes) {
         std::wstring text = volumeName(v) + L" (" + sizeText(v.size) + L")";
-        if (v.state == "mounted") text += L"  –  " + widen(v.mountPoint);
+        if (v.state == "mounted")
+            text += L"  –  " + widen(v.mountPoint) + L" (" +
+                    tr(v.writable ? Str::AccessWritable : Str::AccessReadOnly) + L")";
         else if (v.state == "unsupported") text += L"  –  " + std::wstring(tr(Str::StateUnsupported));
         else if (v.state == "error") text += L"  –  " + std::wstring(tr(Str::StateError));
 
@@ -275,6 +281,16 @@ void showMenu() {
         } else if (v.state != "unsupported") {
             AppendMenuW(sub, MF_STRING, base + ActMount, tr(Str::MenuMount));
             SetMenuDefaultItem(sub, base + ActMount, FALSE);
+        }
+        if (v.state != "unsupported") {
+            AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
+            bool blocked = !v.writeBlocker.empty();
+            AppendMenuW(sub, MF_STRING | (blocked ? MF_GRAYED : 0) |
+                                 (v.allowWrite && !blocked ? MF_CHECKED : 0),
+                        base + ActWrite, tr(Str::MenuAllowWrite));
+            if (blocked)
+                AppendMenuW(sub, MF_STRING | MF_GRAYED, 0,
+                            format(Str::ReadOnlyBecause, widen(v.writeBlocker).c_str()).c_str());
         }
         if (!v.message.empty()) {
             AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
@@ -370,6 +386,25 @@ void showAbout() {
     TaskDialogIndirect(&cfg, nullptr, nullptr, nullptr);
 }
 
+// Explains what write access means before it is switched on.
+bool confirmWrite(const VolumeRecord& v) {
+    std::wstring main = format(Str::WriteConfirmMain, volumeName(v).c_str());
+    TASKDIALOG_BUTTON buttons[] = {{IDOK, tr(Str::WriteConfirmYes)},
+                                   {IDCANCEL, tr(Str::WriteConfirmNo)}};
+    TASKDIALOGCONFIG cfg{sizeof cfg};
+    cfg.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION;
+    cfg.pszWindowTitle = tr(Str::WriteConfirmTitle);
+    cfg.pszMainIcon = TD_WARNING_ICON;
+    cfg.pszMainInstruction = main.c_str();
+    cfg.pszContent = tr(Str::WriteConfirmContent);
+    cfg.cButtons = 2;
+    cfg.pButtons = buttons;
+    cfg.nDefaultButton = IDCANCEL;
+    int button = 0;
+    SetForegroundWindow(g_hwnd);
+    return SUCCEEDED(TaskDialogIndirect(&cfg, &button, nullptr, nullptr)) && button == IDOK;
+}
+
 void onCommand(UINT cmd) {
     if (cmd == CMD_EXIT) {
         DestroyWindow(g_hwnd);
@@ -395,7 +430,21 @@ void onCommand(UINT cmd) {
         case ActMount:
             if (request({"MOUNT", sid}, &mp)) openDrive(widen(mp));
             break;
-        case ActUnmount: request({"UNMOUNT", sid}); break;
+        case ActUnmount: {
+            bool safeNote = v->writable && !v->isImage;
+            std::wstring name = volumeName(*v);  // v may change during the request
+            if (request({"UNMOUNT", sid}) && safeNote)
+                balloon(format(Str::BalloonUnmountedSafe, name.c_str()), L"");
+            break;
+        }
+        case ActWrite:
+            if (v->allowWrite) {
+                request({"WRITE", sid, "off"});
+            } else {
+                VolumeRecord copy = *v;  // the list may change while the dialog is open
+                if (confirmWrite(copy)) request({"WRITE", sid, "on"});
+            }
+            break;
         case ActDetach: request({"DETACH", sid}); break;
         case ActAsk: request({"POLICY", sid, "ask"}); break;
         case ActAlways: request({"POLICY", sid, "always"}); break;

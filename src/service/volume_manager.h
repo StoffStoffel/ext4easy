@@ -15,6 +15,7 @@
 namespace ext4easy {
 
 class DiskSource;
+class Ext4Volume;
 class WinFspMount;
 
 // Keeps track of all disks and their ext partitions, mounts them according to
@@ -46,6 +47,9 @@ public:
     bool mount(int volumeId, wchar_t letter, std::string& mountPoint, std::string& error);
     bool unmount(int volumeId, std::string& error);
     bool setPolicy(int volumeId, Policy p, std::string& error);
+    // Allows or forbids write access. A mounted volume is unmounted (all
+    // data written) and mounted again in the new mode.
+    bool setWrite(int volumeId, bool allow, std::string& error);
 
     int subscribe(EventSink sink);
     void unsubscribe(int token);
@@ -62,6 +66,8 @@ private:
     void removeDiskLocked(const std::wstring& key);
     void applyPolicyLocked(Volume& v);
     bool mountLocked(Volume& v, wchar_t letter, std::string& error);
+    std::unique_ptr<Ext4Volume> openWritableLocked(Volume& v);
+    bool allowWriteLocked(const Volume& v) const;
     void broadcastLocked(const std::string& line);
     VolumeRecord recordLocked(const Volume& v) const;
 

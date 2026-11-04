@@ -24,6 +24,8 @@ struct VolumeManager::Volume {
     std::string state;    // mounted | available | unsupported | error
     std::string message;  // warning or error text
     bool asked = false;   // user was already asked (or decided) since the disk appeared
+    bool allowWrite = false;  // images only; disks use the stored setting
+    std::string writeNote;    // why a wanted writable mount is read-only
 };
 
 struct VolumeManager::Disk {
@@ -61,6 +63,11 @@ std::string signatureOf(const std::vector<Partition>& parts) {
 
 std::wstring physicalDrivePath(int number) {
     return L"\\\\.\\PhysicalDrive" + std::to_wstring(number);
+}
+
+// Reason why the filesystem can only be read, "" if writing is possible.
+std::string writeBlockerOf(const Partition& p) {
+    return Ext4Volume::writeBlocker(p.ext.compat, p.ext.incompat, p.ext.roCompat);
 }
 
 }  // namespace
@@ -211,7 +218,10 @@ void VolumeManager::addDiskLocked(std::shared_ptr<DiskSource> src, const std::ws
         }
         logLine("found " + p.ext.kind + " \"" + volumeName(p) + "\" on " +
                 wideToUtf8(src->description()) + " partition " + std::to_string(p.number) + " (" +
-                formatSize(p.size) + "), " + v->state);
+                formatSize(p.size) + "), " + v->state +
+                (v->state == "available" && !writeBlockerOf(p).empty()
+                     ? " (read-only: " + writeBlockerOf(p) + ")"
+                     : ""));
         disk->volumeIds.push_back(v->id);
         volumes_[v->id] = std::move(v);
     }
@@ -249,9 +259,46 @@ void VolumeManager::applyPolicyLocked(Volume& v) {
     }
 }
 
+bool VolumeManager::allowWriteLocked(const Volume& v) const {
+    return v.isImage ? v.allowWrite : settings_.allowWrite(v.part.ext.uuid);
+}
+
+// Writable mount of v, or nullptr with v.writeNote set to the reason.
+std::unique_ptr<Ext4Volume> VolumeManager::openWritableLocked(Volume& v) {
+    std::string blocker = writeBlockerOf(v.part);
+    if (!blocker.empty()) {
+        v.writeNote = "read-only: " + blocker;
+        return nullptr;
+    }
+    std::shared_ptr<DiskSource> src = v.disk;
+    if (!src->isWritable()) {
+        if (v.isImage) {
+            // The image was opened with the user's rights, which do not allow writing.
+            v.writeNote = "read-only: no permission to change the image file";
+            return nullptr;
+        }
+        std::wstring werr;
+        src = DiskSource::open(v.disk->path(), werr, true);
+        if (!src) {
+            v.writeNote = "read-only: " + wideToUtf8(werr);
+            return nullptr;
+        }
+    }
+    std::string error;
+    auto volume = Ext4Volume::mount(src, v.part.offset, v.part.size, error, true);
+    if (!volume) v.writeNote = "read-only: " + error;
+    return volume;
+}
+
 bool VolumeManager::mountLocked(Volume& v, wchar_t letter, std::string& error) {
     if (v.mount) return true;
-    auto volume = Ext4Volume::mount(v.disk, v.part.offset, v.part.size, error);
+    v.writeNote.clear();
+    std::unique_ptr<Ext4Volume> volume;
+    if (allowWriteLocked(v)) {
+        volume = openWritableLocked(v);
+        if (!volume) logLine("\"" + volumeName(v.part) + "\": " + v.writeNote);
+    }
+    if (!volume) volume = Ext4Volume::mount(v.disk, v.part.offset, v.part.size, error);
     if (!volume) {
         v.state = "error";
         v.message = error;
@@ -279,11 +326,13 @@ bool VolumeManager::mountLocked(Volume& v, wchar_t letter, std::string& error) {
         return false;
     }
     std::wstring actual = m->mountPoint();
+    bool writable = m->writable();
     v.mount = std::move(m);
     v.state = "mounted";
     v.asked = true;
     if (!v.isImage && !actual.empty()) settings_.setPreferredLetter(v.part.ext.uuid, actual[0]);
-    logLine("mounted \"" + volumeName(v.part) + "\" at " + wideToUtf8(actual));
+    logLine("mounted \"" + volumeName(v.part) + "\" at " + wideToUtf8(actual) +
+            (writable ? " with write access" : " read-only"));
     return true;
 }
 
@@ -308,7 +357,10 @@ VolumeRecord VolumeManager::recordLocked(const Volume& v) const {
     r.policy = policyName(v.isImage ? Policy::Always : settings_.policy(v.part.ext.uuid));
     r.isImage = v.isImage;
     r.removable = v.disk->isRemovable();
-    r.message = v.message;
+    r.message = v.mount && !v.writeNote.empty() ? v.writeNote : v.message;
+    r.writable = v.mount && v.mount->writable();
+    r.allowWrite = allowWriteLocked(v);
+    r.writeBlocker = writeBlockerOf(v.part);
     return r;
 }
 
@@ -369,6 +421,46 @@ bool VolumeManager::setPolicy(int volumeId, Policy p, std::string& error) {
     if (p == Policy::Always) applyPolicyLocked(v);
     broadcastLocked("EVENT\tCHANGED");
     return true;
+}
+
+bool VolumeManager::setWrite(int volumeId, bool allow, std::string& error) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = volumes_.find(volumeId);
+    if (it == volumes_.end()) {
+        error = "unknown volume";
+        return false;
+    }
+    Volume& v = *it->second;
+    if (v.state == "unsupported") {
+        error = v.message;
+        return false;
+    }
+    if (allow) {
+        std::string blocker = writeBlockerOf(v.part);
+        if (!blocker.empty()) {
+            error = "This drive can only be read: " + blocker;
+            return false;
+        }
+    }
+    if (v.isImage) v.allowWrite = allow;
+    else settings_.setAllowWrite(v.part.ext.uuid, allow);
+    logLine("write access for \"" + volumeName(v.part) + "\" " + (allow ? "allowed" : "off"));
+
+    bool ok = true;
+    if (v.mount && v.mount->writable() != allow) {
+        // Mount again in the new mode, on the same drive letter.
+        std::wstring mp = v.mount->mountPoint();
+        wchar_t letter = mp.size() == 2 && mp[1] == L':' ? mp[0] : 0;
+        v.mount.reset();  // writes everything and unmounts
+        v.state = "available";
+        ok = mountLocked(v, letter, error);
+        if (ok && allow && !v.mount->writable()) {
+            error = v.writeNote;
+            ok = false;
+        }
+    }
+    broadcastLocked("EVENT\tCHANGED");
+    return ok;
 }
 
 int VolumeManager::subscribe(EventSink sink) {

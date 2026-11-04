@@ -37,22 +37,25 @@ void Settings::load() {
     while (std::getline(in, line)) {
         if (line.empty() || line[0] == '#') continue;
         std::istringstream ls(line);
-        std::string uuid, policy, letter;
-        ls >> uuid >> policy >> letter;
+        std::string uuid, policy, letter, access;
+        ls >> uuid >> policy >> letter >> access;
         Entry e;
         if (uuid.empty() || !parsePolicy(policy, e.policy)) continue;
         if (letter.size() == 1 && std::isalpha(static_cast<unsigned char>(letter[0])))
             e.letter = static_cast<wchar_t>(std::toupper(static_cast<unsigned char>(letter[0])));
+        e.allowWrite = access == "rw";
         entries_[uuid] = e;
     }
 }
 
 void Settings::save() const {
     std::ofstream out(settingsPath(), std::ios::trunc);
-    out << "# ext4easy volume settings: uuid policy(ask|always|never) drive-letter(- = none)\n";
+    out << "# ext4easy volume settings: uuid policy(ask|always|never) drive-letter(- = none) "
+           "access(ro|rw)\n";
     for (const auto& [uuid, e] : entries_)
         out << uuid << ' ' << policyName(e.policy) << ' '
-            << (e.letter ? static_cast<char>(e.letter) : '-') << '\n';
+            << (e.letter ? static_cast<char>(e.letter) : '-') << ' '
+            << (e.allowWrite ? "rw" : "ro") << '\n';
     if (!out) logLine("warning: cannot write volumes.conf");
 }
 
@@ -64,6 +67,16 @@ Policy Settings::policy(const std::string& uuid) const {
 wchar_t Settings::preferredLetter(const std::string& uuid) const {
     auto it = entries_.find(uuid);
     return it == entries_.end() ? 0 : it->second.letter;
+}
+
+bool Settings::allowWrite(const std::string& uuid) const {
+    auto it = entries_.find(uuid);
+    return it != entries_.end() && it->second.allowWrite;
+}
+
+void Settings::setAllowWrite(const std::string& uuid, bool allow) {
+    entries_[uuid].allowWrite = allow;
+    save();
 }
 
 void Settings::setPolicy(const std::string& uuid, Policy p) {

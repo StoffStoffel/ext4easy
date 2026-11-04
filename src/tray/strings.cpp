@@ -31,13 +31,12 @@ const Entry kStrings[] = {
     {Str::StateError, L"error", L"Fehler"},
     {Str::AskTitle, L"Linux drive detected", L"Linux-Laufwerk erkannt"},
     {Str::AskMain, L"Mount “%s”?", L"„%s“ einbinden?"},
-    {Str::AskContent, L"%s on %s, partition %d.\nThe drive is mounted read-only.",
-     L"%s auf %s, Partition %d.\nDas Laufwerk wird schreibgeschützt eingebunden."},
+    {Str::AskContent, L"%s on %s, partition %d.\n%s", L"%s auf %s, Partition %d.\n%s"},
     {Str::AskMount, L"&Mount", L"&Einbinden"},
     {Str::AskSkip, L"&Don't mount", L"&Nicht einbinden"},
     {Str::AskRemember, L"Remember for this drive", L"Für dieses Laufwerk merken"},
-    {Str::BalloonMounted, L"“%s” is now available as %s (read-only).",
-     L"„%s“ ist jetzt als %s verfügbar (nur lesen)."},
+    {Str::BalloonMounted, L"“%s” is now available as %s (%s).",
+     L"„%s“ ist jetzt als %s verfügbar (%s)."},
     {Str::BalloonFailed, L"“%s” could not be mounted.", L"„%s“ konnte nicht eingebunden werden."},
     {Str::UnnamedVolume, L"Linux drive", L"Linux-Laufwerk"},
     {Str::ImageFilter, L"Disk images (*.img;*.raw;*.bin)|*.img;*.raw;*.bin|All files|*.*|",
@@ -70,6 +69,33 @@ const Entry kStrings[] = {
      L"<a href=\"https://github.com/gkostka/lwext4\">https://github.com/gkostka/lwext4</a>"},
     {Str::AboutNotices, L"<a href=\"notices\">Show all license notices</a>",
      L"<a href=\"notices\">Alle Lizenzhinweise anzeigen</a>"},
+    {Str::MenuAllowWrite, L"Allow &write access", L"&Schreibzugriff erlauben"},
+    {Str::AccessReadOnly, L"read-only", L"nur lesen"},
+    {Str::AccessWritable, L"read/write", L"lesen und schreiben"},
+    {Str::AskReadOnly, L"The drive is mounted read-only.",
+     L"Das Laufwerk wird schreibgeschützt eingebunden."},
+    {Str::AskWritable,
+     L"The drive is mounted with write access. Unmount it here before unplugging it.",
+     L"Das Laufwerk wird mit Schreibzugriff eingebunden. Trennen Sie es hier, bevor Sie es "
+     L"abziehen."},
+    {Str::ReadOnlyBecause, L"Only readable: %s", L"Nur lesbar: %s"},
+    {Str::WriteConfirmTitle, L"Write access", L"Schreibzugriff"},
+    {Str::WriteConfirmMain, L"Allow write access to “%s”?", L"Schreibzugriff auf „%s“ erlauben?"},
+    {Str::WriteConfirmContent,
+     L"Windows programs can then create, change and delete files on this Linux drive.\n\n"
+     L"Before unplugging the drive, choose “Unmount” in this menu so that all data is "
+     L"written.\n\n"
+     L"Linux permissions are not checked on Windows. New files get the owner of their folder.",
+     L"Windows-Programme können dann Dateien auf diesem Linux-Laufwerk anlegen, ändern und "
+     L"löschen.\n\n"
+     L"Wählen Sie vor dem Abziehen in diesem Menü „Trennen“, damit alle Daten geschrieben "
+     L"werden.\n\n"
+     L"Linux-Berechtigungen werden unter Windows nicht geprüft. Neue Dateien erhalten den "
+     L"Besitzer ihres Ordners."},
+    {Str::WriteConfirmYes, L"&Allow write access", L"Schreibzugriff &erlauben"},
+    {Str::WriteConfirmNo, L"&Cancel", L"&Abbrechen"},
+    {Str::BalloonUnmountedSafe, L"“%s” was unmounted, all data is written. You can unplug it now.",
+     L"„%s“ wurde getrennt, alle Daten sind geschrieben. Sie können es jetzt abziehen."},
 };
 
 bool useGerman() {

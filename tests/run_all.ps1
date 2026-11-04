@@ -1,4 +1,5 @@
-# Full write test suite: scenarios, stress matrix, disk-full and crash tests.
+# Full write test suite: scenarios, stress matrix, disk-full and crash tests,
+# then writing through a drive letter (WinFsp).
 #   powershell -ExecutionPolicy Bypass -File tests\run_all.ps1 [-Seeds 1,2,3,4,5,6] [-CrashRuns 10]
 param(
     [string]$Seeds = '1,2,3,4,5,6',
@@ -24,6 +25,10 @@ if ($LASTEXITCODE) { $failed += 'disk-full' }
 Write-Host "=== crash"
 powershell -ExecutionPolicy Bypass -File tests\crash_test.ps1 -Runs $CrashRuns
 if ($LASTEXITCODE) { $failed += 'crash' }
+
+Write-Host "=== drive letter"
+powershell -ExecutionPolicy Bypass -File tests\run_mount_tests.ps1
+if ($LASTEXITCODE) { $failed += 'drive-letter' }
 
 if ($failed.Count) {
     Write-Host "SUITE FAILED: $($failed -join ', ')"

@@ -131,12 +131,22 @@ void PipeServer::serve(void* pipe) {
                 } else {
                     reply(manager_.setPolicy(toInt(f, 1), p, error));
                 }
+            } else if (cmd == "WRITE") {
+                if (f.size() < 3 || (f[2] != "on" && f[2] != "off")) {
+                    error = "usage: WRITE id on|off";
+                    reply(false);
+                } else {
+                    reply(manager_.setWrite(toInt(f, 1), f[2] == "on", error));
+                }
             } else if (cmd == "ATTACH" && f.size() > 1) {
-                // Open the file with the client's rights, not the service's.
+                // Open the file with the client's rights, not the service's:
+                // writable if the user may change it, otherwise read-only.
                 std::wstring werr;
                 std::shared_ptr<DiskSource> image;
                 if (ImpersonateNamedPipeClient(static_cast<HANDLE>(pipe))) {
-                    image = DiskSource::open(utf8ToWide(f[1]), werr);
+                    std::wstring path = utf8ToWide(f[1]);
+                    image = DiskSource::open(path, werr, true);
+                    if (!image) image = DiskSource::open(path, werr);
                     RevertToSelf();
                 } else {
                     werr = L"cannot impersonate client";

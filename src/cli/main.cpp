@@ -5,7 +5,7 @@
 //   ext4easy ls <source> [path]         list a directory
 //   ext4easy cat <source> <path>        write a file to stdout
 //   ext4easy stat <source> <path>       show file details
-//   ext4easy mount <source> [X:]        mount as drive letter
+//   ext4easy mount <source> [X:] [--write]  mount as drive letter
 //   ext4easy install | uninstall        background service + tray autostart
 //   ext4easy service [--console]        the background service itself
 //   ext4easy ctl <request...>           talk to the running service
@@ -37,18 +37,21 @@ namespace {
 
 void printUsage() {
     std::printf(
-        "ext4easy - read ext2/3/4 filesystems on Windows\n\n"
+        "ext4easy - read and write ext2/3/4 filesystems on Windows\n\n"
         "Usage:\n"
         "  ext4easy list [source]          show disks/partitions with ext2/3/4\n"
         "  ext4easy ls   <source> [path]   list a directory\n"
         "  ext4easy cat  <source> <path>   write a file to stdout\n"
         "  ext4easy stat <source> <path>   show file details\n"
-        "  ext4easy mount <source> [X:]    mount read-only as a drive letter\n"
+        "  ext4easy mount <source> [X:] [--write]\n"
+        "                                  mount as a drive letter (read-only unless\n"
+        "                                  --write; ext4 with extents only)\n"
         "\n"
         "  ext4easy install                install background service + tray app (admin)\n"
         "  ext4easy uninstall              remove them again (admin)\n"
         "  ext4easy service --console      run the service in this window (testing)\n"
         "  ext4easy ctl LIST|MOUNT id|...  send a request to the running service\n"
+        "               WRITE id on|off    allow write access for a volume\n"
         "\n<source> is an image file or \\\\.\\PhysicalDriveN, optionally with @N\n"
         "to choose partition N (default: first ext partition).\n"
         "Raw disk access needs administrator rights.\n"
@@ -114,6 +117,9 @@ void printPartitions(const std::wstring& path, DiskSource& disk) {
                 std::printf("]");
             }
             if (p.ext.needsRecovery()) std::printf("  [journal needs recovery]");
+            if (unsupported.empty() &&
+                !Ext4Volume::writeBlocker(p.ext.compat, p.ext.incompat, p.ext.roCompat).empty())
+                std::printf("  [read-only]");
         }
         std::printf("\n");
     }
@@ -150,7 +156,7 @@ int cmdList(const std::vector<std::wstring>& args) {
 }
 
 // Opens "<path>[@N]" and mounts the chosen partition.
-std::unique_ptr<Ext4Volume> openVolume(const std::wstring& source) {
+std::unique_ptr<Ext4Volume> openVolume(const std::wstring& source, bool writable = false) {
     std::wstring path = source;
     int wanted = -1;
     size_t at = source.rfind(L'@');
@@ -164,7 +170,7 @@ std::unique_ptr<Ext4Volume> openVolume(const std::wstring& source) {
     }
 
     std::wstring e;
-    auto disk = DiskSource::open(path, e);
+    auto disk = DiskSource::open(path, e, writable);
     if (!disk) {
         err(e);
         return nullptr;
@@ -182,13 +188,13 @@ std::unique_ptr<Ext4Volume> openVolume(const std::wstring& source) {
                         : std::string("no ext2/3/4 partition found"));
         return nullptr;
     }
-    if (chosen->ext.needsRecovery())
+    if (chosen->ext.needsRecovery() && !writable)
         std::fprintf(stderr,
                      "warning: filesystem was not cleanly unmounted (journal not replayed); "
                      "recent changes may be missing\n");
 
     std::string me;
-    auto vol = Ext4Volume::mount(disk, chosen->offset, chosen->size, me);
+    auto vol = Ext4Volume::mount(disk, chosen->offset, chosen->size, me, writable);
     if (!vol) err(me);
     return vol;
 }
@@ -297,9 +303,18 @@ int cmdMount(const std::vector<std::wstring>& args) {
         printUsage();
         return 2;
     }
-    auto vol = openVolume(args[0]);
+    bool write = false;
+    std::wstring mountPoint;
+    for (size_t i = 1; i < args.size(); ++i) {
+        if (args[i] == L"--write" || args[i] == L"-w") write = true;
+        else if (mountPoint.empty()) mountPoint = args[i];
+        else {
+            printUsage();
+            return 2;
+        }
+    }
+    auto vol = openVolume(args[0], write);
     if (!vol) return 1;
-    std::wstring mountPoint = args.size() > 1 ? args[1] : L"";
     return runMountUntilCtrlC(std::move(vol), mountPoint);
 }
 

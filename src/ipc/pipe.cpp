@@ -45,7 +45,10 @@ std::vector<std::string> VolumeRecord::toFields() const {
             policy,
             isImage ? "1" : "0",
             removable ? "1" : "0",
-            message};
+            message,
+            writable ? "1" : "0",
+            allowWrite ? "1" : "0",
+            writeBlocker};
 }
 
 bool VolumeRecord::fromFields(const std::vector<std::string>& f, VolumeRecord& v) {
@@ -63,6 +66,10 @@ bool VolumeRecord::fromFields(const std::vector<std::string>& f, VolumeRecord& v
     v.isImage = f[11] == "1";
     v.removable = f[12] == "1";
     v.message = f[13];
+    // added with write support; older services do not send them
+    v.writable = f.size() > 14 && f[14] == "1";
+    v.allowWrite = f.size() > 15 && f[15] == "1";
+    v.writeBlocker = f.size() > 16 ? f[16] : "";
     return true;
 }
 

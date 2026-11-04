@@ -36,6 +36,18 @@ enum class Str {
     AboutMain,
     AboutContent,      // %s version; may contain <a href> links
     AboutNotices,      // footer link text
+    MenuAllowWrite,
+    AccessReadOnly,    // short: "read-only"
+    AccessWritable,    // short: "read/write"
+    AskReadOnly,       // sentence in the mount question
+    AskWritable,
+    ReadOnlyBecause,   // %s = reason (English text from the core)
+    WriteConfirmTitle,
+    WriteConfirmMain,  // %s name
+    WriteConfirmContent,
+    WriteConfirmYes,
+    WriteConfirmNo,
+    BalloonUnmountedSafe,  // %s name
 };
 
 // Text in the user's UI language (German or English).

@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- **Write support for ext4** (with extents), off by default:
+  - Tray menu *Allow write access* per drive (remembered per filesystem); a mounted
+    drive is mounted again with write access. The menu shows read-only/read-write and
+    why a drive can only be read (ext2/ext3, unreplayed journal, unsupported features).
+  - Command line: `ext4easy mount <source> [X:] --write`, `ext4easy ctl WRITE id on|off`;
+    `list` marks read-only filesystems.
+  - In Explorer: create, change, rename/move and delete files and folders, set
+    timestamps. Data is written through the journal, flushed every 2 seconds and
+    completely on unmount; after unmounting, the tray app says the drive can be removed.
+  - Image files are opened writable when the user may change them.
+- Write core and test suite (scenarios, random stress against a model, disk full, crash
+  tests, writing through a drive letter), all checked with Linux `e2fsck`; fixes in
+  lwext4 listed in `third_party/lwext4/PATCHES.md`.
+
 ## 0.3.0 – 2026-11-03
 
 - The project was renamed from **ext4win** to **ext4easy**, because the name ext4win was
